@@ -24,7 +24,7 @@ export async function execute(interaction) {
         .map((s, i) => `**${i + 1}.** <@${s.discordId}> — **${s.rollingAverage}**/100 (${s.gamesPlayed} games)`)
         .join('\n')
     )
-    .setFooter({ text: 'Compared to their own history, not to teammates in a single game.' });
+    .setFooter({ text: 'Scored per role against the enemy player in that role. 50 = did your job.' });
 
   await interaction.reply({ embeds: [embed] });
 }

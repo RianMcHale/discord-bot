@@ -6,23 +6,76 @@ benched" decision is based on data instead of whoever gets blamed loudest in voi
 
 ## How the scoring works
 
-Comparing raw stats across roles doesn't work — a support's damage and an ADC's damage
-aren't the same thing. So instead of fixed thresholds, each player is scored **relative
-to the other tracked players who played in that specific match**, using role-neutral
-ratios:
+Every player is graded on **what their role is actually supposed to do**, against the
+player on the other team who had the identical job. One number, 0–100, and it means the
+same thing for all five roles:
 
-| Metric | Weight | Why |
-|---|---|---|
-| Kill participation % | 20% | Were they even near the fights that mattered |
-| Damage / gold efficiency | 25% | Filters out "farmed but did nothing" |
-| Vision + objective involvement | 20% | Vision score/min + turret/dragon/baron takedowns |
-| Deaths per minute (inverted) | 20% | Fewer deaths = higher score |
-| Teammate impact vote (`/vote`, optional) | 15% | Stats can't see "threw the fight" or "made the game-winning call" |
+> **50 = you did your job.** Above 50 you beat the player opposite you at it, below 50 you
+> lost that matchup.
 
-Each match produces an **objective composite (0–100)** per player. The bot then tracks a
+That shared anchor is what makes the scores comparable across roles. A jungler's 62 and an
+ADC's 62 both mean "beat their counterpart by a similar margin", so `/worst` can compare
+them honestly.
+
+### Per-role rubrics
+
+| | Top | Jungle | Mid | ADC | Support |
+|---|---|---|---|---|---|
+| Lane @14 (gold + xp vs counterpart) | 25 | — | 24 | 18 | 12 |
+| Side pressure (plates, turret dmg, solo kills) | 15 | — | — | — | — |
+| Teamfight / damage | 22 | 12 | 24 | 28 | — |
+| Death discipline | 20 | 8 | 16 | 20 | 12 |
+| Objectives | 10 | 24 | 8 | 12 | 8 |
+| Map presence / roam | 8 | — | 18 | 6 | 18 |
+| Lanes @14 (state of the map you shaped) | — | 20 | — | — | — |
+| Gank impact & counter-response | — | 14 | — | — | — |
+| Jungle economy & counter-jungling | — | 12 | — | — | — |
+| Vision | — | 10 | (in tempo) | — | 28 |
+| Farm & gold | — | — | 10 | 16 | — |
+| Engage & peel (CC, heal/shield, saves) | — | — | — | — | 22 |
+
+A teammate impact vote (`/vote`, 1–5 stars) still blends in for the last 15% of the final
+number, because stats can't see "threw the fight by overextending".
+
+### Why it's built this way
+
+**A low-impact jungler has nowhere to hide.** Deaths are the *lightest* weight in the
+jungle rubric (8%) and objective control plus the state of the three lanes at 14 minutes
+are the heaviest (44% combined). A jungler who farms safely to 3/2/9, contests nothing and
+lets every lane fall behind gets graded on exactly that. Under the old model that same
+game scored *well*, because low deaths were 35% of the composite for everyone.
+
+**A camped laner isn't punished for someone else's macro.** The bot reads the timeline for
+enemy-jungler commitments into each lane before 15 minutes — landed ganks, plus frames
+where the enemy jungler is standing next to you while your lane opponent is there too.
+Net pressure then:
+
+- shifts the lane grade's break-even point (roughly −380 gold per net commitment, capped
+  at three) so you're measured against the deficit you were *expected* to be at;
+- discounts ganked deaths to 0.7× weight;
+- nudges side pressure, CS and gold comparisons by up to ±12 points, because a laner who
+  is dived every wave can't take plates either;
+- **credits the enemy jungler** who created the pressure, and **debits your own jungler**
+  for every commitment they left unanswered.
+
+**Deaths are weighted by whose fault they were.** A 1v1 death counts 1.25×, a 3-man
+collapse 0.75×, a death inside a teamfight 0.55×. Traded deaths, deaths alone in enemy
+territory, shutdowns given up and late-game deaths all adjust further, and the result is
+compared to your counterpart's context-weighted deaths — not to a raw per-minute rate.
+
+**No metric asks a role to do another role's job.** Support vision is compared to the
+enemy support's, not to an ADC's. The old damage-per-gold metric quietly punished every
+support who bought support items.
+
+Every component also falls back to a role baseline (rough SR averages), so a lane where
+both players played badly doesn't hand one of them a good score for being marginally less
+bad.
+
+### Rolling average
+
+Each match produces an **objective composite (0–100)** per player. The bot tracks a
 **rolling average** over each player's last N games (default 10, set via `ROLLING_WINDOW`)
-so one bad game doesn't unfairly bench someone who's normally solid — this also protects
-against blaming whoever died last, which tends to dominate in-person votes.
+so one bad game doesn't bench someone who's normally solid.
 
 `/worst` and `/leaderboard` use the rolling average, not a single game, to make the actual
 bench call.
@@ -79,11 +132,19 @@ database server needed. Back it up or inspect it directly if you want; it's just
 
 ## Notes / known limitations
 
-- Riot's match API doesn't expose "which death directly gave up an objective" without
-  parsing the full match **timeline** (a separate, heavier endpoint). The current
-  "deaths per minute" metric is a reasonable proxy but not a perfect substitute — if you
-  want that level of detail later, the timeline endpoint (`/lol/match/v5/matches/{id}/timeline`)
-  is the next thing to integrate.
+- `/fetchgame` calls the **timeline** endpoint (`/lol/match/v5/matches/{id}/timeline`) for
+  the one match it scores. That's where lane state at 14, jungle pressure, death context
+  and objective control come from. If the call fails, the score is still produced — those
+  components drop out and the embed says so — but it's a much blunter grade, so a rate
+  limit or an expired key shows up as `⚠️ Timeline unavailable`.
+- Lane assignment for gank detection splits the map on the mid diagonal, so a fight in the
+  river or the enemy tri-brush is attributed to the nearest lane. Frame snapshots are 60
+  seconds apart and miss short ganks entirely, which is why landed ganks (kill events)
+  count for more than proximity frames and why proximity is capped.
+- ARAM, Arena and any match where Riot's role detection fails fall back to a role-neutral
+  rubric and are labelled as such. They still count toward the rolling average.
+- Scores stored before this rewrite used the old lobby-relative model and aren't
+  comparable. Run `/resetgames` if you want a clean rolling average.
 - `/fetchgame` finds a match by searching one registered player's recent history for a
   game that at least 2 tracked players share. If your squad plays multiple games in a
   session, run `/fetchgame` after each one (it skips matches already scored).

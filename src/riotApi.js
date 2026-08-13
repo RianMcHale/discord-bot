@@ -53,5 +53,20 @@ export const riot = {
   async getMatch(matchId) {
     const { data } = await withRetry(() => regional.get(`/lol/match/v5/matches/${matchId}`));
     return data;
+  },
+
+  // Per-minute frames plus every kill/objective/ward event. Heavier than the match
+  // response, but it's the only source for lane state at 14, who was actually
+  // present when someone died, and how much jungle pressure each lane took —
+  // i.e. most of what the role rubrics grade on. Returns null instead of throwing
+  // so a missing timeline degrades the score rather than failing the command.
+  async getTimeline(matchId) {
+    try {
+      const { data } = await withRetry(() => regional.get(`/lol/match/v5/matches/${matchId}/timeline`));
+      return data;
+    } catch (err) {
+      console.error(`Timeline unavailable for ${matchId}:`, err?.response?.status || err.message);
+      return null;
+    }
   }
 };

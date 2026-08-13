@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { riot } from '../riotApi.js';
 import { db } from '../storage.js';
-import { scoreMatch } from '../scoring.js';
+import { scoreMatch } from '../scoring/index.js';
 
 const ROLE_DISPLAY = {
   TOP: { label: 'Top', emoji: '🛡️' },
@@ -14,7 +14,7 @@ const ROLE_DISPLAY = {
 const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 
 function roleInfo(role) {
-  return ROLE_DISPLAY[role] || { label: role, emoji: '❓' };
+  return ROLE_DISPLAY[role] || { label: role === 'UNKNOWN' ? 'Unranked role' : role, emoji: '❓' };
 }
 
 function scoreBar(score) {
@@ -36,6 +36,13 @@ async function fetchAllCandidateMatchIds(players, lookback) {
     }
   }
   return [...idSet];
+}
+
+function componentLine(s) {
+  return s.components
+    .filter((c) => c.score !== null)
+    .map((c) => `${c.label} ${c.score}`)
+    .join(' · ');
 }
 
 export const data = new SlashCommandBuilder()
@@ -97,8 +104,12 @@ export async function execute(interaction) {
     const { matchId: chosenId, match: chosenMatch } = qualifying[0];
     const alsoNew = qualifying.length - 1;
 
-    // scores includes BOTH teams — every player in the lobby, scored the same way.
-    const scores = scoreMatch(chosenMatch, trackedPuuids);
+    // Only the match we're actually scoring needs the (heavier) timeline call.
+    const timeline = await riot.getTimeline(chosenId);
+
+    // scores includes BOTH teams — every player in the lobby, scored against the
+    // rubric for the role they played.
+    const scores = scoreMatch(chosenMatch, { timeline, trackedPuuids });
 
     const byPuuid = Object.fromEntries(players.map((p) => [p.puuid, p]));
     const scoresByDiscordId = {};
@@ -113,6 +124,7 @@ export async function execute(interaction) {
       playedAt: chosenMatch.info.gameEndTimestamp || chosenMatch.info.gameStartTimestamp || Date.now(),
       queueId: chosenMatch.info.queueId,
       durationSeconds: chosenMatch.info.gameDuration,
+      dataQuality: timeline ? 'full' : 'partial',
       scores: scoresByDiscordId
     });
 
@@ -124,21 +136,25 @@ export async function execute(interaction) {
     const embed = new EmbedBuilder()
       .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(chosenMatch.info.gameDuration / 60)} min`)
       .setDescription(
-        `Match \`${chosenId}\` · objective scoring only — run \`/vote\` to factor in teammate impact ratings.`
+        `Match \`${chosenId}\` · scored per role, 50 = did your job.` +
+          (timeline ? '' : '\n⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.') +
+          '\nRun `/vote` to factor in teammate impact ratings.'
       )
       .setColor(win ? 0x2ecc71 : 0xe74c3c);
 
     for (const [discordId, s] of sorted) {
       const isWorst = discordId === worstDiscordId;
       const { label, emoji } = roleInfo(s.role);
+      const notes = s.notes.length ? `\n-# ⚠️ ${s.notes.join(' · ')}` : '';
       embed.addFields({
-        name: `${emoji} ${label}${isWorst ? ' 🔻 Worst' : ''}`,
+        name: `${emoji} ${label} · ${s.grade}${isWorst ? ' 🔻 Worst' : ''}`,
         value:
           `<@${discordId}> — **${s.champion}**\n` +
           `\`${scoreBar(s.composite)}\` **${s.composite}**\n` +
-          `KDA ${s.kda}\n` +
-          `-# KP ${s.breakdown.killParticipation} · Dmg/Gold ${s.breakdown.dmgGoldEfficiency} · Vision/Obj ${s.breakdown.visionObjective} · Deaths ${s.breakdown.deathsInverse}`,
-        inline: true
+          `KDA ${s.kda}` +
+          (s.context.goldDiff14 == null ? '' : ` · ${s.context.goldDiff14 >= 0 ? '+' : ''}${s.context.goldDiff14}g @${s.context.benchMinute}`) +
+          `\n-# ${componentLine(s)}${notes}`,
+        inline: false
       });
     }
 
@@ -157,7 +173,7 @@ export async function execute(interaction) {
       embed.addFields({
         name: '⚔️ Enemy team',
         value: enemyEntries
-          .map((e) => `${roleInfo(e.role).emoji} ${roleInfo(e.role).label} · ${e.champion} — **${e.composite}**`)
+          .map((e) => `${roleInfo(e.role).emoji} ${roleInfo(e.role).label} · ${e.champion} — **${e.composite}** (${e.grade})`)
           .join('\n'),
         inline: false
       });

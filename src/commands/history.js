@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { db } from '../storage.js';
-import { finalScoreWithVotes } from '../scoring.js';
+import { finalScoreWithVotes } from '../scoring/index.js';
 
 export const data = new SlashCommandBuilder()
   .setName('history')
@@ -33,8 +33,10 @@ export async function execute(interaction) {
     const avgVote = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
     const final = finalScoreWithVotes(s.composite, avgVote);
     const date = new Date(g.playedAt).toLocaleDateString();
-    return `\`${date}\` ${s.role} · KDA ${s.kda} · ${s.win ? 'W' : 'L'} · score **${final.toFixed(1)}**${
-      avgVote ? ` (votes: ${avgVote.toFixed(1)}⭐)` : ''
+    // Games scored before the role-based rewrite have no grade stored.
+    const gradeTag = s.grade ? ` (${s.grade})` : '';
+    return `\`${date}\` ${s.role} · KDA ${s.kda} · ${s.win ? 'W' : 'L'} · score **${final.toFixed(1)}**${gradeTag}${
+      avgVote ? ` · votes ${avgVote.toFixed(1)}⭐` : ''
     }`;
   });
 

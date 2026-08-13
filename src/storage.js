@@ -2,7 +2,10 @@
 // data/db.json shape:
 // {
 //   players: { [discordId]: { discordId, riotGameName, riotTagLine, puuid, role, addedAt } },
-//   games: { [matchId]: { matchId, playedAt, queueId, scores: { [discordId]: {composite, breakdown, role} } } },
+//   games: { [matchId]: { matchId, playedAt, queueId, durationSeconds, dataQuality,
+//     scores: { [discordId]: { composite, grade, role, champion, kda, win,
+//                              components: [{key,label,weight,score,detail}],
+//                              breakdown: {key: score}, context: {...}, notes: [] } } } },
 //   votes: { [matchId]: { [voterDiscordId]: { [targetDiscordId]: rating } } }
 // }
 

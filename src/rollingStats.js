@@ -1,5 +1,5 @@
 import { db } from './storage.js';
-import { finalScoreWithVotes } from './scoring.js';
+import { finalScoreWithVotes } from './scoring/index.js';
 
 function avgVoteFor(matchId, discordId) {
   const votes = db.votesForGame(matchId);
