@@ -118,21 +118,24 @@ bench call.
   (e.g. `/register game_name:Faker tag_line:KR1`). Run once per player, all 6 people.
 - `/roster` — list everyone currently registered.
 - `/fetchgame` — pull the most recent shared match and score everyone who played.
-  Run this after each game. You get a ranked scoreboard, the bench call with the
-  reasoning behind it, and a flag line for anyone whose score was context-adjusted
-  (camped, left unanswered, etc.):
+  Run this after each game. One card per player, best to worst, three across:
 
   ```
-  #  ROLE PLAYER         SCORE KDA      WEAKEST
-  1  MID  Sylenced        52 C 6/5/6    Objectives 40
-  2  ADC  Mooncalf        46 D 8/4/5    Lane 34
-  3  SUP  grug            40 D 1/8/14   Participation 28
-  4  TOP  riaN            34 F 1/7/2    Side lane 20
-  5  JGL  ILoveKebab911   29 F 3/2/9    Gank impact 0
+  🌲 Jungle · F 🔻
+  @ILoveKebab911 — Ivern
+  ▰▰▰▱▱▱▱▱▱▱ 28.6
+  KDA 4/7/10 · +293g @14
+  Weakest: Gank impact 0
   ```
 
-  The `WEAKEST` column is the role component that cost each player the most, so the
-  scoreboard alone tells you *why* someone is where they are.
+  `Weakest` is the role component that cost that player the most, so each card says
+  *why* the score is what it is. Below the cards:
+
+  - **🪑 Bench watch** — the worst player's three weakest components and every flag
+    against them, so the bench call comes with its reasoning attached.
+  - **📌 Worth knowing** — flags for everyone else, and only when there is one:
+    camped, left unanswered, solo deaths. A clean game shows no section at all.
+  - **⚔️ Enemy team** — one line, enough to tell whether the lobby was one-sided.
 - `/fetchgame detail:true` — same match, but every player's full per-role breakdown
   with the raw stat behind each component (`28.0 Lane 25% · -1600g @14 (bar -1140g)`).
   Use it when someone disputes a bench call.

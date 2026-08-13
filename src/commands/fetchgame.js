@@ -17,25 +17,9 @@ function roleInfo(role) {
   return ROLE_DISPLAY[role] || { abbrev: '?', label: 'Unknown role', emoji: '❓' };
 }
 
-// The scoreboard is a fixed-width table inside a code block, which is the only
-// way Discord will align anything. One column spec drives both the header and
-// the rows so they can't drift apart.
-const COLS = [
-  { key: 'rank', head: '#', width: 2 },
-  { key: 'role', head: 'ROLE', width: 4 },
-  { key: 'name', head: 'PLAYER', width: 13 },
-  { key: 'score', head: 'SCORE', width: 6, align: 'right' },
-  { key: 'kda', head: 'KDA', width: 8 },
-  { key: 'weak', head: 'WEAKEST', width: 16 }
-];
-
-function tableRow(values) {
-  return COLS.map((c) => {
-    const v = String(values[c.key] ?? '').slice(0, c.width);
-    return c.align === 'right' ? v.padStart(c.width) : v.padEnd(c.width);
-  })
-    .join(' ')
-    .trimEnd();
+function scoreBar(score) {
+  const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
+  return '▰'.repeat(filled) + '▱'.repeat(10 - filled);
 }
 
 /** The component that dragged a player's score down most — the bench-relevant one. */
@@ -74,29 +58,9 @@ export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, ma
   const win = sorted[0][1].win;
   const squadTeamId = sorted[0][1].teamId;
 
-  // --- scoreboard -----------------------------------------------------------
-  const rows = sorted.map(([discordId, s], i) =>
-    tableRow({
-      rank: i + 1,
-      role: roleInfo(s.role).abbrev,
-      name: nameByDiscordId[discordId],
-      score: `${Math.round(s.composite)} ${s.grade}`,
-      kda: s.kda,
-      weak: weakest(s).map(componentText).join('')
-    })
-  );
-  const header = tableRow(Object.fromEntries(COLS.map((c) => [c.key, c.head])));
-  const board = ['```', header, ...rows, '```'].join('\n');
-
   const embed = new EmbedBuilder()
     .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(matchInfo.gameDuration / 60)} min`)
     .setColor(win ? 0x2ecc71 : 0xe74c3c)
-    .setDescription(
-      board +
-        (hasTimeline
-          ? ''
-          : '\n-# ⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.')
-    )
     // Persistent hints live in the footer rather than their own field — they're
     // the same every game, and a field per hint is most of what made this cluttered.
     .setFooter({
@@ -105,7 +69,36 @@ export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, ma
         : '50 = did your job for your role · /vote to add impact ratings · detail:true for the full breakdown'
     });
 
-  // --- the bench call, the one thing that gets full detail -------------------
+  if (!hasTimeline) {
+    embed.setDescription(
+      '-# ⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.'
+    );
+  }
+
+  // --- one card per player, best to worst ------------------------------------
+  // Inline so Discord packs three per row. Cards sit in a narrow column, so each
+  // line has to fit one: score, the KDA and lane result behind it, and the single
+  // component that cost them most. The context flags deliberately live in the
+  // sections below rather than here — repeating them in both is what made the
+  // first version a wall of text, and a card that grows a note is also a card
+  // that's taller than the two beside it.
+  for (const [discordId, s] of sorted) {
+    const info = roleInfo(s.role);
+    const gold =
+      s.context.goldDiff14 == null ? '' : ` · ${s.context.goldDiff14 >= 0 ? '+' : ''}${s.context.goldDiff14}g @${s.context.benchMinute}`;
+
+    embed.addFields({
+      name: `${info.emoji} ${info.label} · ${s.grade}${discordId === worstDiscordId ? ' 🔻' : ''}`,
+      value:
+        `<@${discordId}> — **${s.champion}**\n` +
+        `\`${scoreBar(s.composite)}\` **${s.composite.toFixed(1)}**\n` +
+        `KDA ${s.kda}${gold}\n` +
+        `-# Weakest: ${weakest(s).map(componentText).join('')}`,
+      inline: true
+    });
+  }
+
+  // --- the bench call, the one player who gets full reasoning ----------------
   const worstRole = roleInfo(worst.role);
   const worstNotes = worst.notes.length ? `\n-# ${worst.notes.join(' · ')}` : '';
   embed.addFields({
@@ -117,7 +110,7 @@ export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, ma
     inline: false
   });
 
-  // --- context flags, only for players who actually have one -----------------
+  // --- context flags for everyone else, only when there's something to say ---
   const flagged = sorted.filter(([id, s]) => id !== worstDiscordId && s.notes.length > 0);
   if (flagged.length > 0) {
     embed.addFields({
