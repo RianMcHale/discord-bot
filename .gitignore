@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit your Discord token or Riot API key
+.env
+
+# Local data — registered players, scored games, votes. Personal, not code.
+data/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+*.log

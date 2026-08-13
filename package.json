@@ -1,0 +1,16 @@
+{
+  "name": "lol-bench-bot",
+  "version": "1.0.0",
+  "description": "Discord bot that scores a 6-player LoL rotation and flags the worst performer to bench each game.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy-commands": "node src/deployCommands.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  }
+}
