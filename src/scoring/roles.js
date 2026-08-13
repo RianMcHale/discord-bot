@@ -249,11 +249,11 @@ function scoreTop(P, ctx) {
   return {
     components: [
       component('lane', 'Lane', 25, lane?.score, lane?.detail),
-      component('sidelane', 'Side pressure', 15, side.score, side.detail),
+      component('sidelane', 'Side lane', 15, side.score, side.detail),
       component('combat', 'Teamfight', 22, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.4, specialist: true }))),
-      component('deaths', 'Death discipline', 20, ...pick(deathComponent(P, ctx, b))),
+      component('deaths', 'Deaths', 20, ...pick(deathComponent(P, ctx, b))),
       component('objectives', 'Objectives', 10, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.25 }))),
-      component('presence', 'Map presence', 8, ...pick(participationComponent(P, ctx, b)))
+      component('presence', 'Presence', 8, ...pick(participationComponent(P, ctx, b)))
     ]
   };
 }
@@ -304,13 +304,13 @@ function scoreJungle(P, ctx) {
 
   return {
     components: [
-      component('objectives', 'Objective control', 24, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
+      component('objectives', 'Objectives', 24, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
       component('mapstate', 'Lanes @14', 20, mapState.score, mapState.detail),
       component('pressure', 'Gank impact', 14, pressure.score, pressure.detail),
-      component('economy', 'Jungle economy', 12, economy.score, economy.detail),
-      component('vision', 'Vision control', 10, ...pick(visionComponent(P, ctx, b))),
+      component('economy', 'Jungle farm', 12, economy.score, economy.detail),
+      component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
       component('combat', 'Teamfight', 12, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true }))),
-      component('deaths', 'Death discipline', 8, ...pick(deathComponent(P, ctx, b)))
+      component('deaths', 'Deaths', 8, ...pick(deathComponent(P, ctx, b)))
     ]
   };
 }
@@ -342,9 +342,9 @@ function scoreMid(P, ctx) {
     components: [
       component('lane', 'Lane', 24, lane?.score, lane?.detail),
       component('combat', 'Damage', 24, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.15 }))),
-      component('roam', 'Map impact', 18, roam.score, roam.detail),
-      component('deaths', 'Death discipline', 16, ...pick(deathComponent(P, ctx, b))),
-      component('tempo', 'Wave & vision', 10, tempo.score, tempo.detail),
+      component('roam', 'Roaming', 18, roam.score, roam.detail),
+      component('deaths', 'Deaths', 16, ...pick(deathComponent(P, ctx, b))),
+      component('tempo', 'Wave/vision', 10, tempo.score, tempo.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.25 })))
     ]
   };
@@ -383,9 +383,9 @@ function scoreAdc(P, ctx) {
       component('combat', 'Damage', 28, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.1 }))),
       component('deaths', 'Positioning', 20, ...pick(deathComponent(P, ctx, b))),
       component('lane', 'Lane', 18, lane?.score, lane?.detail),
-      component('economy', 'Farm & gold', 16, economy.score, economy.detail),
+      component('economy', 'Farming', 16, economy.score, economy.detail),
       component('structures', 'Objectives', 12, structures.score, structures.detail),
-      component('presence', 'Map presence', 6, ...pick(participationComponent(P, ctx, b)))
+      component('presence', 'Presence', 6, ...pick(participationComponent(P, ctx, b)))
     ]
   };
 }
@@ -415,9 +415,9 @@ function scoreSupport(P, ctx) {
   return {
     components: [
       component('vision', 'Vision', 28, ...pick(visionComponent(P, ctx, b))),
-      component('utility', 'Engage & peel', 22, utility.score, utility.detail),
+      component('utility', 'Utility', 22, utility.score, utility.detail),
       component('presence', 'Participation', 18, ...pick(participationComponent(P, ctx, b))),
-      component('deaths', 'Death discipline', 12, ...pick(deathComponent(P, ctx, b))),
+      component('deaths', 'Deaths', 12, ...pick(deathComponent(P, ctx, b))),
       component('lane', 'Bot lane', 12, lane?.score, lane?.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.3 })))
     ]
@@ -431,7 +431,7 @@ function scoreGeneric(P, ctx) {
   return {
     components: [
       component('combat', 'Combat', 30, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.3, specialist: true }))),
-      component('deaths', 'Death discipline', 25, ...pick(deathComponent(P, ctx, b))),
+      component('deaths', 'Deaths', 25, ...pick(deathComponent(P, ctx, b))),
       component('presence', 'Participation', 20, ...pick(participationComponent(P, ctx, b))),
       component('objectives', 'Objectives', 15, ...pick(objectiveComponent(P, ctx, b))),
       component('economy', 'Economy', 10, versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.3 }), `${P.csPerMin.toFixed(1)} cs/min`)

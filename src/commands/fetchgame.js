@@ -4,22 +4,48 @@ import { db } from '../storage.js';
 import { scoreMatch } from '../scoring/index.js';
 
 const ROLE_DISPLAY = {
-  TOP: { label: 'Top', emoji: '🛡️' },
-  JUNGLE: { label: 'Jungle', emoji: '🌲' },
-  MIDDLE: { label: 'Mid', emoji: '⚡' },
-  BOTTOM: { label: 'ADC', emoji: '🏹' },
-  UTILITY: { label: 'Support', emoji: '💚' }
+  TOP: { abbrev: 'TOP', label: 'Top', emoji: '🛡️' },
+  JUNGLE: { abbrev: 'JGL', label: 'Jungle', emoji: '🌲' },
+  MIDDLE: { abbrev: 'MID', label: 'Mid', emoji: '⚡' },
+  BOTTOM: { abbrev: 'ADC', label: 'ADC', emoji: '🏹' },
+  UTILITY: { abbrev: 'SUP', label: 'Support', emoji: '💚' }
 };
 
 const ROLE_ORDER = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 
 function roleInfo(role) {
-  return ROLE_DISPLAY[role] || { label: role === 'UNKNOWN' ? 'Unranked role' : role, emoji: '❓' };
+  return ROLE_DISPLAY[role] || { abbrev: '?', label: 'Unknown role', emoji: '❓' };
 }
 
-function scoreBar(score) {
-  const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
-  return '▰'.repeat(filled) + '▱'.repeat(10 - filled);
+// The scoreboard is a fixed-width table inside a code block, which is the only
+// way Discord will align anything. One column spec drives both the header and
+// the rows so they can't drift apart.
+const COLS = [
+  { key: 'rank', head: '#', width: 2 },
+  { key: 'role', head: 'ROLE', width: 4 },
+  { key: 'name', head: 'PLAYER', width: 13 },
+  { key: 'score', head: 'SCORE', width: 6, align: 'right' },
+  { key: 'kda', head: 'KDA', width: 8 },
+  { key: 'weak', head: 'WEAKEST', width: 16 }
+];
+
+function tableRow(values) {
+  return COLS.map((c) => {
+    const v = String(values[c.key] ?? '').slice(0, c.width);
+    return c.align === 'right' ? v.padStart(c.width) : v.padEnd(c.width);
+  })
+    .join(' ')
+    .trimEnd();
+}
+
+/** The component that dragged a player's score down most — the bench-relevant one. */
+function weakest(s, n = 1) {
+  const scored = s.components.filter((c) => c.score !== null).sort((a, b) => a.score - b.score);
+  return scored.slice(0, n);
+}
+
+function componentText(c) {
+  return `${c.label} ${Math.round(c.score)}`;
 }
 
 // Pull recent match ids from EVERY registered player, not just one "anchor" —
@@ -38,11 +64,107 @@ async function fetchAllCandidateMatchIds(players, lookback) {
   return [...idSet];
 }
 
-function componentLine(s) {
-  return s.components
-    .filter((c) => c.score !== null)
-    .map((c) => `${c.label} ${c.score}`)
-    .join(' · ');
+/**
+ * Builds the result embed. Exported separately from `execute` so the layout can
+ * be rendered and eyeballed without a live Discord interaction.
+ */
+export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, matchInfo, hasTimeline, detail, alsoNew }) {
+  const sorted = Object.entries(scoresByDiscordId).sort((a, b) => b[1].composite - a[1].composite);
+  const [worstDiscordId, worst] = sorted[sorted.length - 1];
+  const win = sorted[0][1].win;
+  const squadTeamId = sorted[0][1].teamId;
+
+  // --- scoreboard -----------------------------------------------------------
+  const rows = sorted.map(([discordId, s], i) =>
+    tableRow({
+      rank: i + 1,
+      role: roleInfo(s.role).abbrev,
+      name: nameByDiscordId[discordId],
+      score: `${Math.round(s.composite)} ${s.grade}`,
+      kda: s.kda,
+      weak: weakest(s).map(componentText).join('')
+    })
+  );
+  const header = tableRow(Object.fromEntries(COLS.map((c) => [c.key, c.head])));
+  const board = ['```', header, ...rows, '```'].join('\n');
+
+  const embed = new EmbedBuilder()
+    .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(matchInfo.gameDuration / 60)} min`)
+    .setColor(win ? 0x2ecc71 : 0xe74c3c)
+    .setDescription(
+      board +
+        (hasTimeline
+          ? ''
+          : '\n-# ⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.')
+    )
+    // Persistent hints live in the footer rather than their own field — they're
+    // the same every game, and a field per hint is most of what made this cluttered.
+    .setFooter({
+      text: detail
+        ? '50 = did your job for your role · /vote to add impact ratings'
+        : '50 = did your job for your role · /vote to add impact ratings · detail:true for the full breakdown'
+    });
+
+  // --- the bench call, the one thing that gets full detail -------------------
+  const worstRole = roleInfo(worst.role);
+  const worstNotes = worst.notes.length ? `\n-# ${worst.notes.join(' · ')}` : '';
+  embed.addFields({
+    name: '🪑 Bench watch',
+    value:
+      `<@${worstDiscordId}> — ${worstRole.emoji} **${worstRole.label} ${worst.champion}** · ${worst.composite.toFixed(1)} (${worst.grade})\n` +
+      `Weakest: ${weakest(worst, 3).map(componentText).join(' · ')}${worstNotes}\n` +
+      `-# One bad game shouldn't outweigh a good rolling average — check \`/leaderboard\` first.`,
+    inline: false
+  });
+
+  // --- context flags, only for players who actually have one -----------------
+  const flagged = sorted.filter(([id, s]) => id !== worstDiscordId && s.notes.length > 0);
+  if (flagged.length > 0) {
+    embed.addFields({
+      name: '📌 Worth knowing',
+      value: flagged
+        .map(([id, s]) => `-# ${roleInfo(s.role).emoji} **${nameByDiscordId[id]}** — ${s.notes.join(' · ')}`)
+        .join('\n'),
+      inline: false
+    });
+  }
+
+  // --- full per-player breakdown, opt-in -------------------------------------
+  if (detail) {
+    for (const [discordId, s] of sorted) {
+      const info = roleInfo(s.role);
+      embed.addFields({
+        name: `${info.emoji} ${info.label} · ${nameByDiscordId[discordId]} · ${s.composite.toFixed(1)} (${s.grade}) · ${s.champion}`,
+        value: s.components
+          .map((c) => `\`${(c.score === null ? '--' : c.score.toFixed(1)).padStart(5)}\` **${c.label}** *${c.weight}%*${c.detail ? ` · ${c.detail}` : ''}`)
+          .join('\n'),
+        inline: false
+      });
+    }
+  }
+
+  // Enemy team on one line — enough to tell whether the lobby was one-sided.
+  const enemyEntries = Object.values(scores)
+    .filter((s) => s.teamId !== squadTeamId)
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+
+  if (enemyEntries.length > 0) {
+    embed.addFields({
+      name: '⚔️ Enemy team',
+      value: enemyEntries.map((e) => `${roleInfo(e.role).abbrev} ${e.champion} **${Math.round(e.composite)}**`).join(' · '),
+      inline: false
+    });
+  }
+
+  if (alsoNew > 0) {
+    embed.addFields({
+      name: '​',
+      value: `-# ${alsoNew} more new shared ${alsoNew === 1 ? 'match' : 'matches'} found — run \`/fetchgame\` again to score the next one.`,
+      inline: false
+    });
+  }
+
+  return { embed, worstDiscordId };
 }
 
 export const data = new SlashCommandBuilder()
@@ -50,6 +172,9 @@ export const data = new SlashCommandBuilder()
   .setDescription('Pull the most recent match your registered squad played together and score it.')
   .addIntegerOption((opt) =>
     opt.setName('lookback').setDescription('How many recent matches per player to search through (default 5)').setRequired(false)
+  )
+  .addBooleanOption((opt) =>
+    opt.setName('detail').setDescription("Show every player's full per-role breakdown instead of the summary").setRequired(false)
   );
 
 export async function execute(interaction) {
@@ -62,6 +187,7 @@ export async function execute(interaction) {
   }
 
   const lookback = interaction.options.getInteger('lookback') || 5;
+  const detail = interaction.options.getBoolean('detail') || false;
   const trackedPuuids = players.map((p) => p.puuid);
 
   try {
@@ -113,9 +239,12 @@ export async function execute(interaction) {
 
     const byPuuid = Object.fromEntries(players.map((p) => [p.puuid, p]));
     const scoresByDiscordId = {};
+    const nameByDiscordId = {};
     for (const [puuid, s] of Object.entries(scores)) {
       const player = byPuuid[puuid];
-      if (player) scoresByDiscordId[player.discordId] = s;
+      if (!player) continue;
+      scoresByDiscordId[player.discordId] = s;
+      nameByDiscordId[player.discordId] = player.riotGameName;
     }
 
     // Store only the tracked squad's scores — that's all rolling averages need.
@@ -128,64 +257,15 @@ export async function execute(interaction) {
       scores: scoresByDiscordId
     });
 
-    const sorted = Object.entries(scoresByDiscordId).sort((a, b) => b[1].composite - a[1].composite);
-    const worstDiscordId = sorted[sorted.length - 1][0];
-    const win = sorted[0][1].win;
-    const squadTeamId = sorted[0][1].teamId;
-
-    const embed = new EmbedBuilder()
-      .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(chosenMatch.info.gameDuration / 60)} min`)
-      .setDescription(
-        `Match \`${chosenId}\` · scored per role, 50 = did your job.` +
-          (timeline ? '' : '\n⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.') +
-          '\nRun `/vote` to factor in teammate impact ratings.'
-      )
-      .setColor(win ? 0x2ecc71 : 0xe74c3c);
-
-    for (const [discordId, s] of sorted) {
-      const isWorst = discordId === worstDiscordId;
-      const { label, emoji } = roleInfo(s.role);
-      const notes = s.notes.length ? `\n-# ⚠️ ${s.notes.join(' · ')}` : '';
-      embed.addFields({
-        name: `${emoji} ${label} · ${s.grade}${isWorst ? ' 🔻 Worst' : ''}`,
-        value:
-          `<@${discordId}> — **${s.champion}**\n` +
-          `\`${scoreBar(s.composite)}\` **${s.composite}**\n` +
-          `KDA ${s.kda}` +
-          (s.context.goldDiff14 == null ? '' : ` · ${s.context.goldDiff14 >= 0 ? '+' : ''}${s.context.goldDiff14}g @${s.context.benchMinute}`) +
-          `\n-# ${componentLine(s)}${notes}`,
-        inline: false
-      });
-    }
-
-    embed.addFields({
-      name: '🪑 On probation',
-      value: `<@${worstDiscordId}> — check \`/leaderboard\` before benching; one bad game shouldn't outweigh a good rolling average.`,
-      inline: false
+    const { embed } = buildMatchEmbed({
+      scores,
+      scoresByDiscordId,
+      nameByDiscordId,
+      matchInfo: chosenMatch.info,
+      hasTimeline: Boolean(timeline),
+      detail,
+      alsoNew
     });
-
-    // Compact enemy-team line: role, champion, score — nothing else.
-    const enemyEntries = Object.values(scores)
-      .filter((s) => s.teamId !== squadTeamId)
-      .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
-
-    if (enemyEntries.length > 0) {
-      embed.addFields({
-        name: '⚔️ Enemy team',
-        value: enemyEntries
-          .map((e) => `${roleInfo(e.role).emoji} ${roleInfo(e.role).label} · ${e.champion} — **${e.composite}** (${e.grade})`)
-          .join('\n'),
-        inline: false
-      });
-    }
-
-    if (alsoNew > 0) {
-      embed.addFields({
-        name: 'ℹ️ Heads up',
-        value: `${alsoNew} other new shared match(es) found too — run \`/fetchgame\` again to score the next one.`,
-        inline: false
-      });
-    }
 
     await interaction.editReply({ embeds: [embed] });
   } catch (err) {
