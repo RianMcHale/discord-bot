@@ -74,11 +74,11 @@ export async function execute(interaction) {
 
     const embeds = result.scored.map((game, i) =>
       buildMatchEmbed({
-        scores: game.scores,
         scoresByDiscordId: game.scoresByDiscordId,
         nameByDiscordId: game.nameByDiscordId,
-        matchInfo: game.match.info,
+        durationSeconds: game.durationSeconds,
         hasTimeline: game.hasTimeline,
+        enemy: game.enemy,
         detail,
         alsoNew: i === result.scored.length - 1 ? result.remaining : 0
       }).embed

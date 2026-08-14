@@ -44,6 +44,20 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+  // Autocomplete arrives as its own interaction type and must answer within
+  // ~3 seconds, so it gets handled before anything else and never defers.
+  if (interaction.isAutocomplete()) {
+    const command = client.commands.get(interaction.commandName);
+    try {
+      if (command?.autocomplete) await command.autocomplete(interaction);
+      else await interaction.respond([]);
+    } catch (err) {
+      console.error(`Autocomplete failed for /${interaction.commandName}:`, err.message);
+      await interaction.respond([]).catch(() => {});
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = client.commands.get(interaction.commandName);

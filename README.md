@@ -139,7 +139,11 @@ bench call.
   - **⚔️ Enemy team** — one line, enough to tell whether the lobby was one-sided.
 - `/fetchgame detail:true` — same match, but every player's full per-role breakdown
   with the raw stat behind each component (`28.0 Lane 25% · -1600g @14 (bar -1140g)`).
-  Use it when someone disputes a bench call.
+- `/match` — re-open a game that was **already** scored, with the full breakdown.
+  Defaults to the most recent; the `game:` option autocompletes a picker of your
+  history (`W · 14/08/2026 · 33min · riaN Ahri, kaiz Nunu`). `summary:true` gives the
+  short scorecard instead. Costs no Riot API calls — the full per-role breakdown is
+  stored with every game, so this works on any game in your history however old.
 - `/profile player:<@user>` — one player's full record: overall average and squad rank,
   a bar per role, form trend, a sparkline of recent games, best and worst single game,
   and most-played champions. `/alltime` is the squad view; this is the individual one.

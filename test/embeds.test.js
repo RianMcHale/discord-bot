@@ -2,7 +2,7 @@
 // checked against them rather than eyeballed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMatchEmbed, postScorecards, weakest, scoreBar, roleInfo } from '../src/embeds.js';
+import { buildMatchEmbed, postScorecards, enemySummary, weakest, scoreBar, roleInfo } from '../src/embeds.js';
 import { scoreMatch } from '../src/scoring/index.js';
 import { campedTopScenario } from './helpers/matchFixture.js';
 
@@ -14,7 +14,7 @@ const scoresByDiscordId = Object.fromEntries(Object.entries(SQUAD).map(([puuid, 
 const nameByDiscordId = { d1: 'TopPlayer', d2: 'JunglePlayer', d3: 'MidPlayer', d4: 'AdcPlayer', d5: 'SupPlayer' };
 
 const build = (opts = {}) =>
-  buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, matchInfo: match.info, hasTimeline: true, ...opts }).embed.toJSON();
+  buildMatchEmbed({ scoresByDiscordId, nameByDiscordId, durationSeconds: match.info.gameDuration, hasTimeline: true, enemy: enemySummary(scores, 100), ...opts }).embed.toJSON();
 
 // Discord counts embed characters the way it documents them: the sum of title,
 // description, field names, field values and footer — across every embed in the

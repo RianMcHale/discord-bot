@@ -71,6 +71,9 @@ export const db = {
   allGames() {
     return Object.values(read().games).sort((a, b) => a.playedAt - b.playedAt);
   },
+  getGame(matchId) {
+    return read().games[matchId] || null;
+  },
   gamesForPlayer(discordId, limit) {
     const games = this.allGames()
       .filter((g) => g.scores[discordId])

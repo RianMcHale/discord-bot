@@ -50,17 +50,38 @@ export async function postScorecards(interaction, embeds) {
 }
 
 /**
- * The per-match scorecard. Exported separately from any command so the layout
- * can be rendered and eyeballed without a live Discord interaction.
+ * The compact enemy-team line, reduced to what the scorecard actually shows.
+ * Stored alongside each game so a scorecard can be re-rendered later without
+ * going back to Riot for the full lobby.
  */
-export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, matchInfo, hasTimeline, detail = false, alsoNew = 0 }) {
+export function enemySummary(scores, squadTeamId) {
+  return Object.values(scores)
+    .filter((s) => s.teamId !== squadTeamId)
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role))
+    .map((s) => ({ role: s.role, champion: s.champion, composite: s.composite }));
+}
+
+/**
+ * The per-match scorecard. Exported separately from any command so the layout
+ * can be rendered and eyeballed without a live Discord interaction, and so a
+ * stored game renders identically to a freshly scored one.
+ */
+export function buildMatchEmbed({
+  scoresByDiscordId,
+  nameByDiscordId,
+  durationSeconds,
+  hasTimeline,
+  enemy = [],
+  detail = false,
+  alsoNew = 0,
+  playedAt = null
+}) {
   const sorted = Object.entries(scoresByDiscordId).sort((a, b) => b[1].composite - a[1].composite);
   const [worstDiscordId, worst] = sorted[sorted.length - 1];
   const win = sorted[0][1].win;
-  const squadTeamId = sorted[0][1].teamId;
 
   const embed = new EmbedBuilder()
-    .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(matchInfo.gameDuration / 60)} min`)
+    .setTitle(`${win ? '🏆 Victory' : '💀 Defeat'} · ${Math.round(durationSeconds / 60)} min`)
     .setColor(win ? 0x2ecc71 : 0xe74c3c)
     // Persistent hints live in the footer rather than their own field — they're
     // the same every game, and a field per hint is most of what made this cluttered.
@@ -70,11 +91,12 @@ export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, ma
         : '50 = did your job for your role · detail:true for the full per-role breakdown'
     });
 
+  const notes = [];
+  if (playedAt) notes.push(`-# <t:${Math.floor(playedAt / 1000)}:R>`);
   if (!hasTimeline) {
-    embed.setDescription(
-      '-# ⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.'
-    );
+    notes.push('-# ⚠️ Timeline unavailable — lane state, gank pressure and death context are missing from these scores.');
   }
+  if (notes.length) embed.setDescription(notes.join('\n'));
 
   // --- one card per player, best to worst ------------------------------------
   // Inline so Discord packs three per row. Cards sit in a narrow column, so each
@@ -138,14 +160,10 @@ export function buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, ma
   }
 
   // Enemy team on one line — enough to tell whether the lobby was one-sided.
-  const enemyEntries = Object.values(scores)
-    .filter((s) => s.teamId !== squadTeamId)
-    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
-
-  if (enemyEntries.length > 0) {
+  if (enemy.length > 0) {
     embed.addFields({
       name: '⚔️ Enemy team',
-      value: enemyEntries.map((e) => `${roleInfo(e.role).abbrev} ${e.champion} **${Math.round(e.composite)}**`).join(' · '),
+      value: enemy.map((e) => `${roleInfo(e.role).abbrev} ${e.champion} **${Math.round(e.composite)}**`).join(' · '),
       inline: false
     });
   }

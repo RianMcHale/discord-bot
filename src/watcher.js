@@ -62,11 +62,11 @@ async function scanAndPost(client, { maxToScore = 3 } = {}) {
 
   const embeds = result.scored.map((game, i) =>
     buildMatchEmbed({
-      scores: game.scores,
       scoresByDiscordId: game.scoresByDiscordId,
       nameByDiscordId: game.nameByDiscordId,
-      matchInfo: game.match.info,
+      durationSeconds: game.durationSeconds,
       hasTimeline: game.hasTimeline,
+      enemy: game.enemy,
       alsoNew: i === result.scored.length - 1 ? result.remaining : 0
     }).embed
   );

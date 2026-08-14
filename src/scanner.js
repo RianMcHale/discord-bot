@@ -13,6 +13,7 @@ import { riot } from './riotApi.js';
 import { db } from './storage.js';
 import { scoreMatch } from './scoring/index.js';
 import { isSupportedQueue, unsupportedReason } from './queues.js';
+import { enemySummary } from './embeds.js';
 
 /**
  * Match history for one player, repairing a stale PUUID if that's what's wrong.
@@ -162,10 +163,18 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
     }
 
     const scoresByDiscordId = {};
+    let squadTeamId = null;
     for (const [puuid, s] of Object.entries(scores)) {
       const player = playerByPuuid[puuid];
-      if (player) scoresByDiscordId[player.discordId] = s;
+      if (player) {
+        scoresByDiscordId[player.discordId] = s;
+        squadTeamId = s.teamId;
+      }
     }
+
+    // The enemy line is stored too, so /match can rebuild the full scorecard
+    // later without another round trip to Riot for the other five players.
+    const enemy = enemySummary(scores, squadTeamId);
 
     db.saveGame(matchId, {
       matchId,
@@ -173,10 +182,21 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
       queueId: match.info.queueId,
       durationSeconds: match.info.gameDuration,
       dataQuality: timeline ? 'full' : 'partial',
-      scores: scoresByDiscordId
+      scores: scoresByDiscordId,
+      enemy
     });
 
-    scored.push({ matchId, match, hasTimeline: Boolean(timeline), scores, scoresByDiscordId, nameByDiscordId });
+    scored.push({
+      matchId,
+      match,
+      durationSeconds: match.info.gameDuration,
+      playedAt: match.info.gameEndTimestamp || match.info.gameStartTimestamp || Date.now(),
+      hasTimeline: Boolean(timeline),
+      enemy,
+      scores,
+      scoresByDiscordId,
+      nameByDiscordId
+    });
   }
 
   // Counts per reason, so "no new matches" can say *why* rather than leaving you
