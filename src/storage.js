@@ -1,12 +1,12 @@
 // Lightweight JSON-file storage. No native deps, easy to inspect/back up by hand.
 // data/db.json shape:
 // {
-//   players: { [discordId]: { discordId, riotGameName, riotTagLine, puuid, role, addedAt } },
+//   players: { [discordId]: { discordId, riotGameName, riotTagLine, puuid, addedAt } },
 //   games: { [matchId]: { matchId, playedAt, queueId, durationSeconds, dataQuality,
 //     scores: { [discordId]: { composite, grade, role, champion, kda, win,
 //                              components: [{key,label,weight,score,detail}],
 //                              breakdown: {key: score}, context: {...}, notes: [] } } } },
-//   votes: { [matchId]: { [voterDiscordId]: { [targetDiscordId]: rating } } }
+//   skipped: { [matchId]: { reason, rosterCount } }
 // }
 
 import fs from 'node:fs';
@@ -25,16 +25,19 @@ const DB_PATH = path.join(DATA_DIR, 'db.json');
 // and it's not something you want to find out about after a month of games.
 export const dbPath = DB_PATH;
 
+const EMPTY = { players: {}, games: {}, skipped: {}, meta: {} };
+
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({ players: {}, games: {}, votes: {} }, null, 2));
-  }
+  if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify(EMPTY, null, 2));
 }
 
 function read() {
   ensureDb();
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  // Spread over EMPTY so a db written by an older version (no `skipped` key, or
+  // carrying the removed `votes` key) still reads cleanly.
+  const parsed = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  return { ...EMPTY, ...parsed };
 }
 
 function write(db) {
@@ -46,8 +49,7 @@ export const db = {
     return read().players[discordId] || null;
   },
   getPlayerByPuuid(puuid) {
-    const players = read().players;
-    return Object.values(players).find((p) => p.puuid === puuid) || null;
+    return Object.values(read().players).find((p) => p.puuid === puuid) || null;
   },
   allPlayers() {
     return Object.values(read().players);
@@ -57,11 +59,6 @@ export const db = {
     state.players[player.discordId] = { ...(state.players[player.discordId] || {}), ...player };
     write(state);
     return state.players[player.discordId];
-  },
-  removePlayer(discordId) {
-    const state = read();
-    delete state.players[discordId];
-    write(state);
   },
   hasGame(matchId) {
     return Boolean(read().games[matchId]);
@@ -74,32 +71,47 @@ export const db = {
   allGames() {
     return Object.values(read().games).sort((a, b) => a.playedAt - b.playedAt);
   },
-    resetGames() {
-    const state = read();
-    state.games = {};
-    state.votes = {};
-    write(state);
-  },
   gamesForPlayer(discordId, limit) {
     const games = this.allGames()
       .filter((g) => g.scores[discordId])
       .reverse(); // most recent first
     return limit ? games.slice(0, limit) : games;
   },
-  addVote(matchId, voterId, targetId, rating) {
+  resetGames() {
     const state = read();
-    if (!state.votes[matchId]) state.votes[matchId] = {};
-    if (!state.votes[matchId][voterId]) state.votes[matchId][voterId] = {};
-    state.votes[matchId][voterId][targetId] = rating;
+    state.games = {};
+    state.skipped = {};
     write(state);
   },
-  votesForGame(matchId) {
-    return read().votes[matchId] || {};
+
+  // --- matches checked and rejected ------------------------------------------
+  // A match with fewer than two tracked players can never be scored, but without
+  // remembering that, every solo queue game any player has ever played gets
+  // re-fetched from Riot on every single scan. rosterCount guards the cache: if
+  // someone new registers, an old rejection may no longer hold, so it's rechecked.
+  isSkipped(matchId, rosterCount) {
+    const entry = read().skipped[matchId];
+    return Boolean(entry) && entry.rosterCount === rosterCount;
   },
-  // Every match's votes in one read. votesForGame() re-reads and re-parses the
-  // whole file per call, which is fine for a single game but not for stats that
-  // walk every game ever played.
-  allVotes() {
-    return read().votes || {};
+  markSkipped(matchId, reason, rosterCount) {
+    const state = read();
+    state.skipped[matchId] = { reason, rosterCount };
+    write(state);
+  },
+  markManySkipped(entries, rosterCount) {
+    if (entries.length === 0) return;
+    const state = read();
+    for (const { matchId, reason } of entries) state.skipped[matchId] = { reason, rosterCount };
+    write(state);
+  },
+
+  // Small key/value bag for bot bookkeeping that isn't player or game data.
+  getMeta(key) {
+    return read().meta[key] ?? null;
+  },
+  setMeta(key, value) {
+    const state = read();
+    state.meta[key] = value;
+    write(state);
   }
 };

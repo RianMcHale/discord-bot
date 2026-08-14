@@ -14,11 +14,6 @@ import { buildContext } from './context.js';
 import { scoreRole } from './roles.js';
 import { round1, clamp, grade } from './scale.js';
 
-// Reserved for the teammate impact vote (/vote). Stats can't see "threw the
-// fight by overextending" or "made the call that won the game".
-export const VOTE_WEIGHT = 0.15;
-const OBJECTIVE_WEIGHT = 1 - VOTE_WEIGHT;
-
 const MIN_SCORABLE_SECONDS = 8 * 60; // anything shorter is a remake
 
 // Short, scannable flags — these get rendered as one line under a compact
@@ -114,16 +109,6 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
   }
 
   return result;
-}
-
-/**
- * Combines a player's objective composite with an average teammate vote (1-5).
- * Unchanged from the previous model — the vote still fills the last 15%.
- */
-export function finalScoreWithVotes(objectiveComposite, avgVote /* 1-5 or null */) {
-  if (avgVote === null || avgVote === undefined) return objectiveComposite;
-  const voteAsScore = ((avgVote - 1) / 4) * 100;
-  return round1(objectiveComposite * OBJECTIVE_WEIGHT + voteAsScore * VOTE_WEIGHT);
 }
 
 export { grade } from './scale.js';

@@ -1,6 +1,13 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { db } from '../storage.js';
-import { finalScoreWithVotes } from '../scoring/index.js';
+
+const ROLE_EMOJI = {
+  TOP: '🛡️',
+  JUNGLE: '🌲',
+  MIDDLE: '⚡',
+  BOTTOM: '🏹',
+  UTILITY: '💚'
+};
 
 export const data = new SlashCommandBuilder()
   .setName('history')
@@ -26,24 +33,20 @@ export async function execute(interaction) {
 
   const lines = games.map((g) => {
     const s = g.scores[targetUser.id];
-    const votes = db.votesForGame(g.matchId);
-    const ratings = Object.values(votes)
-      .map((byTarget) => byTarget[targetUser.id])
-      .filter((r) => typeof r === 'number');
-    const avgVote = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-    const final = finalScoreWithVotes(s.composite, avgVote);
-    const date = new Date(g.playedAt).toLocaleDateString();
     // Games scored before the role-based rewrite have no grade stored.
     const gradeTag = s.grade ? ` (${s.grade})` : '';
-    return `\`${date}\` ${s.role} · KDA ${s.kda} · ${s.win ? 'W' : 'L'} · score **${final.toFixed(1)}**${gradeTag}${
-      avgVote ? ` · votes ${avgVote.toFixed(1)}⭐` : ''
-    }`;
+    const emoji = ROLE_EMOJI[s.role] || '❓';
+    return (
+      `<t:${Math.floor(g.playedAt / 1000)}:d> ${emoji} **${s.champion}** · ` +
+      `${s.win ? 'W' : 'L'} · KDA ${s.kda} · **${s.composite.toFixed(1)}**${gradeTag}`
+    );
   });
 
   const embed = new EmbedBuilder()
     .setTitle(`${player.riotGameName}#${player.riotTagLine} — recent games`)
     .setColor(0x9b59b6)
-    .setDescription(lines.join('\n'));
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: '50 = did your job for your role · /profile for the full picture' });
 
   await interaction.reply({ embeds: [embed] });
 }

@@ -1,19 +1,8 @@
 import { db } from './storage.js';
-import { finalScoreWithVotes } from './scoring/index.js';
 
-/** Average teammate vote for a player in one game, or null if nobody voted. */
-function avgVoteFor(votesForMatch, discordId) {
-  const ratings = Object.values(votesForMatch || {})
-    .map((byTarget) => byTarget[discordId])
-    .filter((r) => typeof r === 'number');
-  if (ratings.length === 0) return null;
-  return ratings.reduce((a, b) => a + b, 0) / ratings.length;
-}
-
-/** A player's stored score for one game, with any teammate votes blended in. */
-function finalScore(game, discordId, allVotes) {
-  const s = game.scores[discordId];
-  return finalScoreWithVotes(s.composite, avgVoteFor(allVotes[game.matchId], discordId));
+/** A player's score for one game. The composite is the whole score — no blending. */
+function scoreOf(game, discordId) {
+  return game.scores[discordId].composite;
 }
 
 /**
@@ -22,21 +11,21 @@ function finalScore(game, discordId, allVotes) {
  * Players with zero scored games are excluded — there's nothing to judge yet.
  */
 export function computeRollingStats(windowSize) {
-  const allVotes = db.allVotes();
   const players = db.allPlayers();
 
   const stats = players.map((player) => {
     const games = db.gamesForPlayer(player.discordId, windowSize); // most recent first
-    const finalScores = games.map((g) => finalScore(g, player.discordId, allVotes));
+    const scores = games.map((g) => scoreOf(g, player.discordId));
     const rollingAverage =
-      finalScores.length > 0 ? Math.round((finalScores.reduce((a, b) => a + b, 0) / finalScores.length) * 10) / 10 : null;
+      scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
 
     return {
       discordId: player.discordId,
       riotName: `${player.riotGameName}#${player.riotTagLine}`,
-      gamesPlayed: finalScores.length,
+      displayName: player.riotGameName,
+      gamesPlayed: scores.length,
       rollingAverage,
-      recentScores: finalScores
+      recentScores: scores
     };
   });
 
@@ -58,7 +47,6 @@ const round1 = (v) => (v === null ? null : Math.round(v * 10) / 10);
  * @param {number} formWindow - how many recent games count as "current form"
  */
 export function computeCareerStats(formWindow = 5) {
-  const allVotes = db.allVotes();
   const games = db.allGames(); // ascending by playedAt
   const players = db.allPlayers();
 
@@ -71,6 +59,7 @@ export function computeCareerStats(formWindow = 5) {
         displayName: p.riotGameName,
         scores: [],
         byRole: new Map(),
+        byChampion: new Map(),
         wins: 0,
         losses: 0,
         benched: 0,
@@ -85,7 +74,7 @@ export function computeCareerStats(formWindow = 5) {
   for (const game of games) {
     const entries = Object.keys(game.scores)
       .filter((id) => acc.has(id))
-      .map((id) => ({ id, score: finalScore(game, id, allVotes), stored: game.scores[id] }));
+      .map((id) => ({ id, score: scoreOf(game, id), stored: game.scores[id] }));
     if (entries.length === 0) continue;
     if (!game.dataQuality) legacyGames += 1;
 
@@ -95,7 +84,7 @@ export function computeCareerStats(formWindow = 5) {
 
     for (const { id, score, stored } of entries) {
       const a = acc.get(id);
-      a.scores.push(score);
+      a.scores.push({ score, playedAt: game.playedAt, matchId: game.matchId, role: stored.role, win: stored.win });
       if (stored.win) a.wins += 1;
       else a.losses += 1;
       if (lowest && id === lowest.id) a.benched += 1;
@@ -105,33 +94,54 @@ export function computeCareerStats(formWindow = 5) {
       const role = stored.role || 'UNKNOWN';
       if (!a.byRole.has(role)) a.byRole.set(role, []);
       a.byRole.get(role).push(score);
+
+      const champ = stored.champion || 'Unknown';
+      if (!a.byChampion.has(champ)) a.byChampion.set(champ, { scores: [], wins: 0 });
+      a.byChampion.get(champ).scores.push(score);
+      if (stored.win) a.byChampion.get(champ).wins += 1;
     }
   }
 
   const stats = [...acc.values()]
     .filter((a) => a.scores.length > 0)
     .map((a) => {
-      const average = mean(a.scores);
-      const form = mean(a.scores.slice(-formWindow));
+      const values = a.scores.map((s) => s.score);
+      const average = mean(values);
+      const form = mean(values.slice(-formWindow));
+      const bestGame = a.scores.reduce((x, y) => (y.score > x.score ? y : x));
+      const worstGame = a.scores.reduce((x, y) => (y.score < x.score ? y : x));
+
       return {
         discordId: a.discordId,
         riotName: a.riotName,
         displayName: a.displayName,
-        gamesPlayed: a.scores.length,
+        gamesPlayed: values.length,
         average: round1(average),
-        best: round1(Math.max(...a.scores)),
-        worst: round1(Math.min(...a.scores)),
+        best: round1(bestGame.score),
+        worst: round1(worstGame.score),
+        bestGame,
+        worstGame,
         wins: a.wins,
         losses: a.losses,
-        winRate: Math.round((a.wins / a.scores.length) * 100),
+        winRate: Math.round((a.wins / values.length) * 100),
         benched: a.benched,
         // Only meaningful once there's history to compare the recent window against.
-        form: a.scores.length > formWindow ? round1(form) : null,
-        formDelta: a.scores.length > formWindow ? round1(form - average) : null,
+        form: values.length > formWindow ? round1(form) : null,
+        formDelta: values.length > formWindow ? round1(form - average) : null,
         firstPlayed: a.firstPlayed,
         lastPlayed: a.lastPlayed,
+        // Most recent first, for sparklines and recent-form displays.
+        history: [...a.scores].reverse(),
         byRole: [...a.byRole.entries()]
           .map(([role, scores]) => ({ role, games: scores.length, average: round1(mean(scores)) }))
+          .sort((x, y) => y.games - x.games || y.average - x.average),
+        byChampion: [...a.byChampion.entries()]
+          .map(([champion, c]) => ({
+            champion,
+            games: c.scores.length,
+            average: round1(mean(c.scores)),
+            wins: c.wins
+          }))
           .sort((x, y) => y.games - x.games || y.average - x.average)
       };
     })

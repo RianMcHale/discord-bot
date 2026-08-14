@@ -1,0 +1,113 @@
+// Discord silently rejects an embed that breaks its limits, so the scorecard is
+// checked against them rather than eyeballed.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildMatchEmbed, weakest, scoreBar, roleInfo } from '../src/embeds.js';
+import { scoreMatch } from '../src/scoring/index.js';
+import { campedTopScenario } from './helpers/matchFixture.js';
+
+const { match, timeline } = campedTopScenario();
+const scores = scoreMatch(match, { timeline, trackedPuuids: [] });
+
+const SQUAD = { p1: 'd1', p2: 'd2', p3: 'd3', p4: 'd4', p5: 'd5' };
+const scoresByDiscordId = Object.fromEntries(Object.entries(SQUAD).map(([puuid, id]) => [id, scores[puuid]]));
+const nameByDiscordId = { d1: 'TopPlayer', d2: 'JunglePlayer', d3: 'MidPlayer', d4: 'AdcPlayer', d5: 'SupPlayer' };
+
+const build = (opts = {}) =>
+  buildMatchEmbed({ scores, scoresByDiscordId, nameByDiscordId, matchInfo: match.info, hasTimeline: true, ...opts }).embed.toJSON();
+
+test('stays inside every Discord embed limit', () => {
+  for (const detail of [false, true]) {
+    const j = build({ detail, alsoNew: 3 });
+    assert.ok(JSON.stringify(j).length <= 6000, `embed too large with detail=${detail}`);
+    assert.ok(j.fields.length <= 25, `too many fields with detail=${detail}`);
+    for (const f of j.fields) {
+      assert.ok(f.name.length <= 256, `field name too long: ${f.name}`);
+      assert.ok(f.value.length <= 1024, `field value too long: ${f.name}`);
+    }
+    if (j.description) assert.ok(j.description.length <= 4096);
+    assert.ok(j.footer.text.length <= 2048);
+  }
+});
+
+test('one card per squad player, best to worst', () => {
+  const j = build();
+  const cards = j.fields.filter((f) => f.inline);
+  assert.equal(cards.length, 5);
+
+  const scoresInOrder = cards.map((f) => Number(f.value.match(/\*\*(\d+\.\d)\*\*/)[1]));
+  const descending = [...scoresInOrder].sort((a, b) => b - a);
+  assert.deepEqual(scoresInOrder, descending);
+});
+
+test('marks the worst player and gives them the bench field', () => {
+  const j = build();
+  const marked = j.fields.filter((f) => f.name.includes('🔻'));
+  assert.equal(marked.length, 1, 'exactly one player is flagged');
+
+  const bench = j.fields.find((f) => f.name.includes('Bench watch'));
+  assert.ok(bench, 'the bench call always appears');
+  // The farming jungler is the worst in this fixture.
+  assert.match(bench.value, /<@d2>/);
+});
+
+test('context flags appear once, on the section and not the cards', () => {
+  const j = build();
+  const cards = j.fields.filter((f) => f.inline);
+  for (const card of cards) {
+    assert.ok(!/camped ×/.test(card.value), 'cards must stay a uniform height');
+  }
+  const worthKnowing = j.fields.find((f) => f.name.includes('Worth knowing'));
+  assert.ok(worthKnowing, 'the camped top laner should be flagged somewhere');
+  assert.match(worthKnowing.value, /camped/i);
+});
+
+test('detail mode adds a full breakdown per player and nothing else', () => {
+  const summary = build();
+  const detailed = build({ detail: true });
+  assert.equal(detailed.fields.length, summary.fields.length + 5);
+  const breakdown = detailed.fields.find((f) => f.name.includes('JunglePlayer'));
+  // Every component in the jungle rubric, with its weight.
+  assert.match(breakdown.value, /Objectives/);
+  assert.match(breakdown.value, /Lanes @14/);
+  assert.match(breakdown.value, /24%/);
+});
+
+test('warns when the timeline was unavailable', () => {
+  assert.ok(!build({ hasTimeline: true }).description);
+  assert.match(build({ hasTimeline: false }).description, /Timeline unavailable/);
+});
+
+test('mentions the remaining backlog only when there is one', () => {
+  assert.ok(!build({ alsoNew: 0 }).fields.some((f) => /still queued/.test(f.value)));
+  assert.match(
+    build({ alsoNew: 1 }).fields.find((f) => /still queued/.test(f.value)).value,
+    /1 more new shared match still queued/
+  );
+  assert.match(
+    build({ alsoNew: 4 }).fields.find((f) => /still queued/.test(f.value)).value,
+    /4 more new shared matches still queued/
+  );
+});
+
+test('weakest returns the lowest scoring components, ignoring unscored ones', () => {
+  const withNull = { components: [
+    { key: 'a', label: 'A', score: 70 },
+    { key: 'b', label: 'B', score: null },
+    { key: 'c', label: 'C', score: 20 },
+    { key: 'd', label: 'D', score: 45 }
+  ] };
+  assert.deepEqual(weakest(withNull, 2).map((c) => c.key), ['c', 'd']);
+  assert.equal(weakest(withNull).length, 1);
+});
+
+test('the score bar is always ten characters', () => {
+  for (const score of [0, 4, 50, 99.9, 100]) {
+    assert.equal([...scoreBar(score)].length, 10, `bar wrong length for ${score}`);
+  }
+});
+
+test('an unrecognised role still renders', () => {
+  const info = roleInfo('SOMETHING_NEW');
+  assert.ok(info.emoji && info.label && info.abbrev);
+});

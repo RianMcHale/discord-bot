@@ -34,8 +34,7 @@ them honestly.
 | Farm & gold | — | — | 10 | 16 | — |
 | Engage & peel (CC, heal/shield, saves) | — | — | — | — | 22 |
 
-A teammate impact vote (`/vote`, 1–5 stars) still blends in for the last 15% of the final
-number, because stats can't see "threw the fight by overextending".
+The composite of those weights **is** the score — nothing is blended in on top of it.
 
 ### Why it's built this way
 
@@ -117,8 +116,9 @@ bench call.
 - `/register game_name:<name> tag_line:<tag>` — link your Discord account to your Riot ID
   (e.g. `/register game_name:Faker tag_line:KR1`). Run once per player, all 6 people.
 - `/roster` — list everyone currently registered.
-- `/fetchgame` — pull the most recent shared match and score everyone who played.
-  Run this after each game. One card per player, best to worst, three across:
+- `/fetchgame` — score **every** new match your squad has played together (up to 5 per
+  run; use `count:` to score fewer). You normally won't need this — the watcher posts
+  games automatically. One card per player, best to worst, three across:
 
   ```
   🌲 Jungle · F 🔻
@@ -139,8 +139,9 @@ bench call.
 - `/fetchgame detail:true` — same match, but every player's full per-role breakdown
   with the raw stat behind each component (`28.0 Lane 25% · -1600g @14 (bar -1140g)`).
   Use it when someone disputes a bench call.
-- `/vote player:<@user> rating:<1-5>` — rate a teammate's impact on the most recently
-  scored game. Optional, but fills in what stats can't see.
+- `/profile player:<@user>` — one player's full record: overall average and squad rank,
+  a bar per role, form trend, a sparkline of recent games, best and worst single game,
+  and most-played champions. `/alltime` is the squad view; this is the individual one.
 - `/leaderboard` — rolling average score per player over the last `ROLLING_WINDOW`
   games, best to worst. This is recent form, and it's what `/worst` benches on.
 - `/alltime` — career standings across **every** game ever scored. Per player:
@@ -152,6 +153,45 @@ bench call.
   rotation actually needs when deciding who plays what.
 - `/worst` — who the data says should be benched right now.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
+
+## Auto-posting finished games
+
+Set `DISCORD_WATCH_CHANNEL_ID` and the bot posts each game's scorecard by itself,
+usually within a minute of the game ending. Leave it unset and `/fetchgame` stays
+manual.
+
+Riot has no webhooks and no push of any kind, so the only way to learn a game finished
+is to ask. The watcher asks a cheap question often rather than an expensive one rarely:
+the spectator endpoint says whether anyone is in a game *right now*, which turns
+"poll match history and hope" into three states:
+
+| State | When | What it does |
+|---|---|---|
+| **Idle** | nobody in a game | spectator check every `WATCH_IDLE_INTERVAL` (180s), plus a full scan every `WATCH_SAFETY_INTERVAL` (1800s) to catch games played while the bot was down |
+| **Live** | someone is in a game | spectator check every `WATCH_LIVE_INTERVAL` (120s). Doesn't touch match history — the result isn't published yet |
+| **Settling** | a game just ended | scans every `WATCH_SETTLE_INTERVAL` (45s) until the match appears, giving up after ~6 minutes |
+
+Defaults are tuned for a Riot **development** key (100 requests per 2 minutes). With a
+production key you can poll considerably harder.
+
+## Registering slash commands
+
+The bot registers its commands on startup, so adding or changing one only needs a
+deploy. The payload is hashed, so a restart that changed nothing doesn't call Discord
+at all. `npm run deploy-commands` still exists to force a re-register without
+restarting.
+
+## Tests
+
+```bash
+npm test
+```
+
+No test framework or extra dependencies — `node --test` with synthetic matches under
+`test/helpers/`. The scoring model is a pile of judgement calls (component weights,
+jungle-pressure caps, death multipliers), so the suite pins the behaviour those calls
+were made for: a low-impact jungler scores badly despite a good KDA, a camped laner
+isn't punished for it, and the skip cache never re-fetches a match it already rejected.
 
 ## Data storage
 
@@ -183,9 +223,10 @@ DATA_DIR=/data
   rubric and are labelled as such. They still count toward the rolling average.
 - Scores stored before this rewrite used the old lobby-relative model and aren't
   comparable. Run `/resetgames` if you want a clean rolling average.
-- `/fetchgame` finds a match by searching one registered player's recent history for a
-  game that at least 2 tracked players share. If your squad plays multiple games in a
-  session, run `/fetchgame` after each one (it skips matches already scored).
+- A match with fewer than 2 tracked players is remembered as rejected, so every solo
+  queue game in the lookback window is checked exactly once rather than re-fetched on
+  every scan. That cache is invalidated whenever someone new registers, since a bigger
+  roster can change the verdict.
 - Scoring only includes players who actually appear in that match — the 6th player
   sitting out a given game simply isn't scored for it, which is correct (they can't be
   "worst" in a game they didn't play).

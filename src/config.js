@@ -19,5 +19,15 @@ export const config = {
   riotApiKey: required('RIOT_API_KEY'),
   riotRegion: process.env.RIOT_REGION || 'americas',
   riotPlatform: process.env.RIOT_PLATFORM || 'euw1',
-  rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10)
+  rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10),
+
+  // Channel the watcher posts finished games to. Unset = watcher disabled and
+  // /fetchgame stays manual.
+  watchChannelId: process.env.DISCORD_WATCH_CHANNEL_ID || null,
+  // All in seconds. Defaults are tuned for a Riot development key (100 requests
+  // per 2 minutes); a production key could poll considerably harder.
+  watchLiveInterval: parseInt(process.env.WATCH_LIVE_INTERVAL || '120', 10),
+  watchIdleInterval: parseInt(process.env.WATCH_IDLE_INTERVAL || '180', 10),
+  watchSettleInterval: parseInt(process.env.WATCH_SETTLE_INTERVAL || '45', 10),
+  watchSafetyInterval: parseInt(process.env.WATCH_SAFETY_INTERVAL || '1800', 10)
 };

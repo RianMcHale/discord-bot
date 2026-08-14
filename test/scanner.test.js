@@ -1,0 +1,160 @@
+// The scan is where Riot API budget is spent, so these tests are mostly about
+// what it *doesn't* fetch.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { useTempDb } from './helpers/tempDb.js';
+import { campedTopScenario, plainMatch } from './helpers/matchFixture.js';
+
+useTempDb();
+const { db } = await import('../src/storage.js');
+const { scanForNewGames } = await import('../src/scanner.js');
+
+// Two of the fixture's ten participants are our squad.
+db.upsertPlayer({ discordId: 'd1', riotGameName: 'One', riotTagLine: 'EUW', puuid: 'p1' });
+db.upsertPlayer({ discordId: 'd2', riotGameName: 'Two', riotTagLine: 'EUW', puuid: 'p2' });
+
+/** A Riot client that serves canned matches and counts every call. */
+function fakeApi({ ids, matches, timelines = {}, failOn = [] }) {
+  const calls = { getRecentMatchIds: 0, getMatch: [], getTimeline: [] };
+  return {
+    calls,
+    async getRecentMatchIds() {
+      calls.getRecentMatchIds += 1;
+      return ids;
+    },
+    async getMatch(id) {
+      calls.getMatch.push(id);
+      if (failOn.includes(id)) throw Object.assign(new Error('boom'), { response: { status: 500 } });
+      return matches[id];
+    },
+    async getTimeline(id) {
+      calls.getTimeline.push(id);
+      return timelines[id] ?? null;
+    }
+  };
+}
+
+/** A shared match at a given end time, with unique participant puuids per id. */
+function sharedMatch(matchId, endTimestamp) {
+  const { match } = campedTopScenario();
+  match.metadata.matchId = matchId;
+  match.info.gameEndTimestamp = endTimestamp;
+  return match;
+}
+
+/** A match nobody on the squad played — the case that used to be re-fetched forever. */
+function foreignMatch(matchId) {
+  const match = plainMatch();
+  match.metadata.matchId = matchId;
+  match.info.participants.forEach((p, i) => (p.puuid = `stranger${i}`));
+  return match;
+}
+
+test('scores a backlog in one run, oldest first', async () => {
+  db.resetGames();
+  const matches = { A: sharedMatch('A', 3000), B: sharedMatch('B', 1000), C: sharedMatch('C', 2000) };
+  const api = fakeApi({ ids: ['A', 'B', 'C'], matches });
+
+  const result = await scanForNewGames({ api, maxToScore: 5 });
+
+  assert.deepEqual(result.scored.map((s) => s.matchId), ['B', 'C', 'A'], 'chronological, not discovery order');
+  assert.equal(result.remaining, 0);
+  assert.equal(db.allGames().length, 3, 'all three are persisted, not just the newest');
+});
+
+test('caps a large backlog and reports what is left', async () => {
+  db.resetGames();
+  const matches = Object.fromEntries(['A', 'B', 'C', 'D'].map((id, i) => [id, sharedMatch(id, 1000 + i)]));
+  const api = fakeApi({ ids: ['A', 'B', 'C', 'D'], matches });
+
+  const result = await scanForNewGames({ api, maxToScore: 2 });
+
+  assert.equal(result.scored.length, 2);
+  assert.equal(result.remaining, 2);
+  // The cap limits *scoring* work: timelines are only pulled for what gets scored.
+  assert.equal(api.calls.getTimeline.length, 2);
+});
+
+test('never re-fetches a match with too few tracked players', async () => {
+  db.resetGames();
+  const matches = { SOLO: foreignMatch('SOLO'), SHARED: sharedMatch('SHARED', 5000) };
+
+  const first = fakeApi({ ids: ['SOLO', 'SHARED'], matches });
+  await scanForNewGames({ api: first });
+  assert.ok(first.calls.getMatch.includes('SOLO'), 'checked once');
+
+  // This is the fix: a second scan must not spend a request on SOLO again.
+  const second = fakeApi({ ids: ['SOLO', 'SHARED'], matches });
+  const result = await scanForNewGames({ api: second });
+
+  assert.equal(second.calls.getMatch.length, 0, 'nothing needed re-fetching');
+  assert.equal(result.cached, 2, 'one already scored, one already rejected');
+  assert.equal(result.scored.length, 0);
+});
+
+test('re-checks rejected matches after someone new registers', async () => {
+  db.resetGames();
+  const matches = { SOLO: foreignMatch('SOLO') };
+  await scanForNewGames({ api: fakeApi({ ids: ['SOLO'], matches }) });
+
+  // Deliberately a puuid that appears in no fixture match, so this only changes
+  // the roster count and leaves every other test's expectations intact.
+  db.upsertPlayer({ discordId: 'd3', riotGameName: 'Three', riotTagLine: 'EUW', puuid: 'never-plays' });
+
+  const after = fakeApi({ ids: ['SOLO'], matches });
+  await scanForNewGames({ api: after });
+  assert.deepEqual(after.calls.getMatch, ['SOLO'], 'a bigger roster may change the verdict');
+
+  db.resetGames();
+});
+
+test('a transient fetch failure is retried rather than cached as a rejection', async () => {
+  db.resetGames();
+  const matches = { FLAKY: sharedMatch('FLAKY', 9000) };
+
+  const failing = fakeApi({ ids: ['FLAKY'], matches, failOn: ['FLAKY'] });
+  const first = await scanForNewGames({ api: failing });
+  assert.equal(first.scored.length, 0);
+
+  const recovered = fakeApi({ ids: ['FLAKY'], matches });
+  const second = await scanForNewGames({ api: recovered });
+  assert.deepEqual(recovered.calls.getMatch, ['FLAKY'], 'a 500 must not permanently hide a real game');
+  assert.equal(second.scored.length, 1);
+});
+
+test('an unscorable match is rejected permanently', async () => {
+  db.resetGames();
+  const remake = sharedMatch('REMAKE', 4000);
+  remake.info.gameDuration = 240; // scoreMatch throws on anything this short
+
+  const first = fakeApi({ ids: ['REMAKE'], matches: { REMAKE: remake } });
+  const result = await scanForNewGames({ api: first });
+  assert.equal(result.scored.length, 0);
+
+  const second = fakeApi({ ids: ['REMAKE'], matches: { REMAKE: remake } });
+  await scanForNewGames({ api: second });
+  assert.equal(second.calls.getMatch.length, 0, 'a remake is unscorable forever, so stop asking');
+});
+
+test('scored games carry the squad scores and the timeline flag', async () => {
+  db.resetGames();
+  const { timeline } = campedTopScenario();
+  const api = fakeApi({ ids: ['X'], matches: { X: sharedMatch('X', 7000) }, timelines: { X: timeline } });
+
+  const [game] = (await scanForNewGames({ api })).scored;
+
+  assert.equal(game.hasTimeline, true);
+  assert.deepEqual(Object.keys(game.scoresByDiscordId).sort(), ['d1', 'd2']);
+  assert.equal(Object.keys(game.scores).length, 10, 'the enemy team is scored too, for context');
+  assert.equal(db.allGames()[0].dataQuality, 'full');
+});
+
+test('reports nothing found without claiming it checked nothing', async () => {
+  db.resetGames();
+  const api = fakeApi({ ids: [], matches: {} });
+  const result = await scanForNewGames({ api });
+
+  assert.equal(result.scored.length, 0);
+  assert.equal(result.checked, 0);
+  assert.equal(result.remaining, 0);
+});

@@ -89,7 +89,7 @@ export async function execute(interaction) {
       `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n\n` + lines.join('\n\n')
     )
     .setFooter({
-      text: '50 = did your job for your role · /leaderboard for recent form only'
+      text: '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
     });
 
   // Per-role averages are directly comparable to each other, so the squad's best

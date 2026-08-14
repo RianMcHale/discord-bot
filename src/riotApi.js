@@ -55,6 +55,19 @@ export const riot = {
     return data;
   },
 
+  // Is this player in a game right now? Returns null when they aren't (Riot
+  // answers 404, which is the normal case, not an error). This is what lets the
+  // watcher know a result is coming instead of blindly polling match history.
+  async getActiveGame(puuid) {
+    try {
+      const { data } = await withRetry(() => platform.get(`/lol/spectator/v5/active-games/by-summoner/${puuid}`));
+      return data;
+    } catch (err) {
+      if (err?.response?.status === 404) return null;
+      throw err;
+    }
+  },
+
   // Per-minute frames plus every kill/objective/ward event. Heavier than the match
   // response, but it's the only source for lane state at 14, who was actually
   // present when someone died, and how much jungle pressure each lane took —
