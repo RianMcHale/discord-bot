@@ -58,8 +58,9 @@ export async function execute(interaction) {
   }
 
   const lines = stats.map((s, i) => {
+    // Every role they've played, most-played first. Not truncated: there are only
+    // five, and a capped list doesn't add up to the game count next to it.
     const roles = s.byRole
-      .slice(0, 3)
       .map((r) => `${ROLE_EMOJI[r.role] || '❓'} ${ROLE_LABEL[r.role] || r.role} ${fmt(r.average)} ×${r.games}`)
       .join(' · ');
 
@@ -94,19 +95,30 @@ export async function execute(interaction) {
   // Per-role averages are directly comparable to each other, so the squad's best
   // player at a role is a real answer rather than a stat artefact. Worth calling
   // out explicitly — it's the thing a rotation actually needs to know.
+  //
+  // Every role anyone has played shows up, including one-game samples. Hiding a
+  // role until it clears some threshold reads as "nobody is good at Mid" rather
+  // than "not enough games yet", and the ×N count already says how thin it is.
   const bestByRole = [];
+  let thinSample = false;
   for (const role of ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']) {
     const contenders = stats
       .map((s) => ({ s, r: s.byRole.find((r) => r.role === role) }))
-      .filter((c) => c.r && c.r.games >= 2)
-      .sort((a, b) => b.r.average - a.r.average);
-    if (contenders.length > 0) {
-      const { s, r } = contenders[0];
-      bestByRole.push(`${ROLE_EMOJI[role]} ${ROLE_LABEL[role]} — **${s.displayName}** ${fmt(r.average)} (×${r.games})`);
-    }
+      .filter((c) => c.r)
+      .sort((a, b) => b.r.average - a.r.average || b.r.games - a.r.games);
+    if (contenders.length === 0) continue;
+    const { s, r } = contenders[0];
+    if (r.games < 2) thinSample = true;
+    // Mentions, matching the list above — using Riot names here made the same
+    // person appear under two different names in one embed.
+    bestByRole.push(`${ROLE_EMOJI[role]} ${ROLE_LABEL[role]} — <@${s.discordId}> ${fmt(r.average)} (×${r.games})`);
   }
   if (bestByRole.length > 0) {
-    embed.addFields({ name: '🎯 Best in role', value: bestByRole.join('\n'), inline: false });
+    embed.addFields({
+      name: '🎯 Best in role',
+      value: bestByRole.join('\n') + (thinSample ? '\n-# ×1 means a single game — treat those as provisional.' : ''),
+      inline: false
+    });
   }
 
   if (legacyGames > 0) {
