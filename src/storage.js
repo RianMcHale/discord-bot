@@ -12,12 +12,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// DATA_DIR lets the store live somewhere other than the repo — a mounted volume
-// on a host with an ephemeral filesystem, or a throwaway directory under test.
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+// config.dataDir lets the store live somewhere other than the repo — a mounted
+// volume on a host with an ephemeral filesystem, or a throwaway dir under test.
+const DATA_DIR = config.dataDir || path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
+
+// Exported so startup can log it. On a host with an ephemeral filesystem this is
+// the difference between history that survives a deploy and history that doesn't,
+// and it's not something you want to find out about after a month of games.
+export const dbPath = DB_PATH;
 
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });

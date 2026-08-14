@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { config } from './config.js';
+import { db, dbPath } from './storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,6 +22,9 @@ async function loadCommands() {
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
+  console.log(
+    `Data store: ${dbPath} — ${db.allPlayers().length} player(s), ${db.allGames().length} scored game(s)`
+  );
 });
 
 client.on('interactionCreate', async (interaction) => {

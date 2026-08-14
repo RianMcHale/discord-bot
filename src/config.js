@@ -9,6 +9,10 @@ function required(name) {
 }
 
 export const config = {
+  // Where db.json lives. RAILWAY_VOLUME_MOUNT_PATH is injected automatically once
+  // a volume is attached, so on Railway you only have to attach the volume —
+  // there's no path to keep in sync. DATA_DIR overrides it anywhere else.
+  dataDir: process.env.DATA_DIR || process.env.RAILWAY_VOLUME_MOUNT_PATH || null,
   discordToken: required('DISCORD_TOKEN'),
   discordClientId: required('DISCORD_CLIENT_ID'),
   discordGuildId: process.env.DISCORD_GUILD_ID || null,
