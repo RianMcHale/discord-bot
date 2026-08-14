@@ -48,8 +48,10 @@ async function anyPlayerInGame(players) {
   return false;
 }
 
-async function scanAndPost(client, { maxToScore = 5 } = {}) {
-  const result = await scanForNewGames({ lookback: 5, maxToScore });
+async function scanAndPost(client, { maxToScore = 3 } = {}) {
+  // Oldest first here: the watcher posts each game as its own message, so a
+  // backlog should appear in the order it was played.
+  const result = await scanForNewGames({ lookback: 5, maxToScore, order: 'oldest' });
   if (result.tooFewPlayers || result.scored.length === 0) return 0;
 
   const channel = await client.channels.fetch(config.watchChannelId).catch(() => null);

@@ -33,6 +33,23 @@ export function componentText(c) {
 }
 
 /**
+ * Posts scorecards one per message.
+ *
+ * Discord's 6000-character embed budget applies to the *message*, summed across
+ * every embed in it — not to each embed. Batching several scorecards into one
+ * reply exceeds it and Discord rejects the entire send with
+ * MAX_EMBED_SIZE_EXCEEDED, so there is no "safe" batch size worth guessing at.
+ */
+export async function postScorecards(interaction, embeds) {
+  if (embeds.length === 0) return 0;
+  await interaction.editReply({ embeds: [embeds[0]] });
+  for (const embed of embeds.slice(1)) {
+    await interaction.followUp({ embeds: [embed] });
+  }
+  return embeds.length;
+}
+
+/**
  * The per-match scorecard. Exported separately from any command so the layout
  * can be rendered and eyeballed without a live Discord interaction.
  */

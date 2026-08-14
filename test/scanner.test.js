@@ -50,16 +50,29 @@ function foreignMatch(matchId) {
   return match;
 }
 
-test('scores a backlog in one run, oldest first', async () => {
+test('takes the most recent unscored game by default', async () => {
   db.resetGames();
   const matches = { A: sharedMatch('A', 3000), B: sharedMatch('B', 1000), C: sharedMatch('C', 2000) };
   const api = fakeApi({ ids: ['A', 'B', 'C'], matches });
 
-  const result = await scanForNewGames({ api, maxToScore: 5 });
+  // What /fetchgame does: the game you just played is the one you asked about.
+  const result = await scanForNewGames({ api, maxToScore: 1 });
 
-  assert.deepEqual(result.scored.map((s) => s.matchId), ['B', 'C', 'A'], 'chronological, not discovery order');
+  assert.deepEqual(result.scored.map((s) => s.matchId), ['A'], 'newest, not first discovered');
+  assert.equal(result.remaining, 2);
+  assert.equal(db.allGames().length, 1, 'the rest stay unscored for a later run');
+});
+
+test('drains a backlog oldest first when asked', async () => {
+  db.resetGames();
+  const matches = { A: sharedMatch('A', 3000), B: sharedMatch('B', 1000), C: sharedMatch('C', 2000) };
+  const api = fakeApi({ ids: ['A', 'B', 'C'], matches });
+
+  // What the watcher does: separate messages, so they should read in play order.
+  const result = await scanForNewGames({ api, maxToScore: 5, order: 'oldest' });
+
+  assert.deepEqual(result.scored.map((s) => s.matchId), ['B', 'C', 'A']);
   assert.equal(result.remaining, 0);
-  assert.equal(db.allGames().length, 3, 'all three are persisted, not just the newest');
 });
 
 test('caps a large backlog and reports what is left', async () => {

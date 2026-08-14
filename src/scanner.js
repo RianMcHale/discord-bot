@@ -36,12 +36,14 @@ async function collectCandidateIds(api, players, lookback) {
  * @param {object} opts
  * @param {number} opts.lookback   recent matches to check per player
  * @param {object} opts.api        Riot client; injectable so tests need no network
- * @param {number} opts.maxToScore cap per run, so a large backlog doesn't blow
- *                                 the rate limit or Discord's 10-embed message limit
+ * @param {number} opts.maxToScore cap per run, to bound Riot API usage
+ * @param {'newest'|'oldest'} opts.order  which end of the backlog to take from.
+ *   'newest' is what you want on demand — the game you just played is the one you
+ *   asked about. 'oldest' is for the watcher, which posts each game separately
+ *   and should therefore read in the order they were played.
  * @returns {Promise<{scored: object[], remaining: number, checked: number, cached: number, players: object[]}>}
- *   `scored` is oldest-first so a backlog reads in the order it was played.
  */
-export async function scanForNewGames({ lookback = 5, maxToScore = 5, api = riot } = {}) {
+export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'newest', api = riot } = {}) {
   const players = db.allPlayers();
   if (players.length < 2) {
     return { scored: [], remaining: 0, checked: 0, cached: 0, players, tooFewPlayers: true };
@@ -103,7 +105,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, api = riot
 
   db.markManySkipped(newlySkipped, rosterCount);
 
-  qualifying.sort((a, b) => a.timestamp - b.timestamp); // oldest first — drain in order
+  qualifying.sort((a, b) => (order === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp));
   const toScore = qualifying.slice(0, maxToScore);
 
   const scored = [];

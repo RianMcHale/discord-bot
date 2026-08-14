@@ -1,21 +1,22 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { scanForNewGames } from '../scanner.js';
-import { buildMatchEmbed } from '../embeds.js';
+import { buildMatchEmbed, postScorecards } from '../embeds.js';
 
-// Discord allows 10 embeds per message; scoring costs two Riot calls per match,
-// so this caps both at something comfortable.
+// Discord's 6000-character embed limit is the total across every embed in a
+// MESSAGE, not per embed. Five scorecards in one reply exceeds it and the whole
+// send is rejected, so each game is posted as its own message.
 const MAX_PER_RUN = 5;
 
 export const data = new SlashCommandBuilder()
   .setName('fetchgame')
-  .setDescription('Score every new match your registered squad has played together.')
+  .setDescription('Score the most recent match your registered squad played together.')
   .addIntegerOption((opt) =>
     opt.setName('lookback').setDescription('How many recent matches per player to search through (default 5)').setRequired(false)
   )
   .addIntegerOption((opt) =>
     opt
       .setName('count')
-      .setDescription(`How many new games to score this run (default ${MAX_PER_RUN}, max ${MAX_PER_RUN})`)
+      .setDescription(`Score more than just the latest game, newest first (max ${MAX_PER_RUN})`)
       .setMinValue(1)
       .setMaxValue(MAX_PER_RUN)
       .setRequired(false)
@@ -28,11 +29,11 @@ export async function execute(interaction) {
   await interaction.deferReply();
 
   const lookback = interaction.options.getInteger('lookback') || 5;
-  const maxToScore = interaction.options.getInteger('count') || MAX_PER_RUN;
+  const maxToScore = interaction.options.getInteger('count') || 1;
   const detail = interaction.options.getBoolean('detail') || false;
 
   try {
-    const result = await scanForNewGames({ lookback, maxToScore });
+    const result = await scanForNewGames({ lookback, maxToScore, order: 'newest' });
 
     if (result.tooFewPlayers) {
       await interaction.editReply('Need at least 2 players registered with `/register` before I can score anything.');
@@ -55,8 +56,6 @@ export async function execute(interaction) {
       return;
     }
 
-    // Oldest first, so a backlog reads in the order it was played. Only the last
-    // embed carries the "more still queued" note.
     const embeds = result.scored.map((game, i) =>
       buildMatchEmbed({
         scores: game.scores,
@@ -69,7 +68,7 @@ export async function execute(interaction) {
       }).embed
     );
 
-    await interaction.editReply({ embeds });
+    await postScorecards(interaction, embeds);
   } catch (err) {
     const status = err?.response?.status;
     if (status === 403) {

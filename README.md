@@ -116,9 +116,10 @@ bench call.
 - `/register game_name:<name> tag_line:<tag>` — link your Discord account to your Riot ID
   (e.g. `/register game_name:Faker tag_line:KR1`). Run once per player, all 6 people.
 - `/roster` — list everyone currently registered.
-- `/fetchgame` — score **every** new match your squad has played together (up to 5 per
-  run; use `count:` to score fewer). You normally won't need this — the watcher posts
-  games automatically. One card per player, best to worst, three across:
+- `/fetchgame` — score the **most recent** unscored match your squad played together.
+  `count:` (max 5) scores further games behind it, newest first, each as its own
+  message. You normally won't need this — the watcher posts games automatically. One
+  card per player, best to worst, three across:
 
   ```
   🌲 Jungle · F 🔻
