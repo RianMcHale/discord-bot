@@ -40,6 +40,22 @@ export async function execute(interaction) {
       return;
     }
 
+    // A scan that fetched nothing because Riot rejected every call is not the
+    // same as a scan that found no new games, and must not read like one.
+    if (result.scored.length === 0 && result.apiErrors?.length === result.players.length) {
+      const first = result.apiErrors[0];
+      const hint =
+        first.status === 403
+          ? 'The `RIOT_API_KEY` is invalid or expired — development keys last 24 hours.'
+          : first.status === 429
+            ? 'Rate limited by Riot. Wait a couple of minutes.'
+            : 'Riot rejected the request. Check the bot logs for detail.';
+      await interaction.editReply(
+        `⚠️ Could not read match history for **any** registered player (${first.detail}).\n${hint}`
+      );
+      return;
+    }
+
     if (result.scored.length === 0) {
       const reasons = Object.entries(result.skippedReasons)
         .sort((a, b) => b[1] - a[1])

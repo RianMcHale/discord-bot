@@ -14,13 +14,22 @@ db.upsertPlayer({ discordId: 'd1', riotGameName: 'One', riotTagLine: 'EUW', puui
 db.upsertPlayer({ discordId: 'd2', riotGameName: 'Two', riotTagLine: 'EUW', puuid: 'p2' });
 
 /** A Riot client that serves canned matches and counts every call. */
-function fakeApi({ ids, matches, timelines = {}, failOn = [] }) {
-  const calls = { getRecentMatchIds: 0, getMatch: [], getTimeline: [] };
+function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], accounts = {}, historyStatus = null }) {
+  const calls = { getRecentMatchIds: [], getMatch: [], getTimeline: [], getAccountByRiotId: [] };
   return {
     calls,
-    async getRecentMatchIds() {
-      calls.getRecentMatchIds += 1;
+    async getRecentMatchIds(puuid) {
+      calls.getRecentMatchIds.push(puuid);
+      if (historyStatus) throw Object.assign(new Error('nope'), { response: { status: historyStatus } });
+      // Simulates a PUUID issued under a previous development key.
+      if (staleFor.includes(puuid)) {
+        throw Object.assign(new Error(`Exception decrypting ${puuid}`), { response: { status: 400 } });
+      }
       return ids;
+    },
+    async getAccountByRiotId(gameName, tagLine) {
+      calls.getAccountByRiotId.push(`${gameName}#${tagLine}`);
+      return accounts[gameName] ?? null;
     },
     async getMatch(id) {
       calls.getMatch.push(id);
@@ -206,6 +215,49 @@ test('rejects a match where the squad was split across both teams', async () => 
 
   assert.equal(result.scored.length, 0, 'teammates would otherwise be listed under "Enemy team"');
   assert.match(Object.keys(result.skippedReasons).join(' '), /opposing teams/);
+});
+
+test('repairs a PUUID that a new API key can no longer decrypt', async () => {
+  // Development keys expire every 24h and PUUIDs are scoped to the key that
+  // issued them. Account-v1 keeps working, so this failed silently: the bot found
+  // zero candidate matches and reported "no new games".
+  db.resetGames();
+
+  // Stand in for what a key rotation does: the stored PUUIDs no longer decrypt,
+  // while account-v1 still resolves each Riot ID to a working one.
+  const roster = db.allPlayers();
+  const working = Object.fromEntries(roster.map((p) => [p.riotGameName, { puuid: p.puuid }]));
+  const stale = roster.map((p) => `stale-${p.puuid}`);
+  roster.forEach((p) => db.upsertPlayer({ discordId: p.discordId, puuid: `stale-${p.puuid}` }));
+
+  const api = fakeApi({
+    ids: ['REPAIRED'],
+    matches: { REPAIRED: sharedMatch('REPAIRED', 8000) },
+    staleFor: stale,
+    accounts: working
+  });
+
+  const result = await scanForNewGames({ api });
+
+  assert.equal(api.calls.getAccountByRiotId.length, roster.length, 're-resolved every Riot ID');
+  assert.equal(result.apiErrors.length, 0, 'a repairable failure is not an error');
+  assert.equal(result.scored.length, 1, 'the game is found after the repair');
+  // Persisted, so the next scan needs no repair at all.
+  assert.deepEqual(
+    db.allPlayers().map((p) => p.puuid).sort(),
+    roster.map((p) => p.puuid).sort()
+  );
+});
+
+test('reports API failures instead of pretending there were no games', async () => {
+  db.resetGames();
+  const api = fakeApi({ ids: [], matches: {}, historyStatus: 403 });
+
+  const result = await scanForNewGames({ api });
+
+  assert.equal(result.scored.length, 0);
+  assert.equal(result.apiErrors.length, db.allPlayers().length, 'every player failed');
+  assert.equal(result.apiErrors[0].status, 403);
 });
 
 test('reports nothing found without claiming it checked nothing', async () => {

@@ -237,6 +237,23 @@ point `DATA_DIR` at it:
 DATA_DIR=/data
 ```
 
+## Riot API keys and stale PUUIDs
+
+**Development keys expire every 24 hours, and PUUIDs are scoped to the key that
+issued them.** When the key rotates, every stored PUUID stops working: match-v5
+answers `400 Exception decrypting <puuid>` while account-v1 still resolves the Riot ID
+perfectly. So `/register` keeps working, the key looks valid, and the bot just quietly
+stops finding games.
+
+The bot now self-heals: on that failure it re-resolves the PUUID from the stored Riot ID
+(the durable identifier), saves the new one and retries. It also reports the failure
+instead of saying "no new matches found" when every player's history call was rejected.
+
+Self-healing only helps if the key itself is current. On a development key you have to
+paste a new one into `RIOT_API_KEY` every day. **Apply for a Personal API Key** at
+https://developer.riotgames.com/ — it doesn't expire, and it's free for a project like
+this one.
+
 ## Notes / known limitations
 
 - `/fetchgame` calls the **timeline** endpoint (`/lol/match/v5/matches/{id}/timeline`) for

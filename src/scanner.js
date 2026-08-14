@@ -15,21 +15,59 @@ import { scoreMatch } from './scoring/index.js';
 import { isSupportedQueue, unsupportedReason } from './queues.js';
 
 /**
+ * Match history for one player, repairing a stale PUUID if that's what's wrong.
+ *
+ * PUUIDs issued under a Riot **development** key are scoped to that key. Dev keys
+ * expire every 24 hours, so the moment you regenerate one, every stored PUUID
+ * stops working — match-v5 answers `400 Exception decrypting <puuid>`. Account-v1
+ * still resolves the Riot ID perfectly, so /register keeps working and nothing
+ * looks broken; the bot just silently stops finding games.
+ *
+ * The Riot ID is the durable identifier, so on that failure we re-resolve the
+ * PUUID from it, save the new one and retry.
+ */
+async function idsForPlayer(api, player, lookback) {
+  try {
+    return await api.getRecentMatchIds(player.puuid, lookback);
+  } catch (err) {
+    const status = err?.response?.status;
+    // 400 is the decryption failure; 404 covers a PUUID that no longer resolves.
+    if (status !== 400 && status !== 404) throw err;
+
+    const account = await api.getAccountByRiotId(player.riotGameName, player.riotTagLine);
+    if (!account?.puuid || account.puuid === player.puuid) throw err;
+
+    console.log(`Refreshed stale PUUID for ${player.riotGameName}#${player.riotTagLine}`);
+    db.upsertPlayer({ discordId: player.discordId, puuid: account.puuid });
+    player.puuid = account.puuid; // keep this scan's tracked list in step
+    return await api.getRecentMatchIds(account.puuid, lookback);
+  }
+}
+
+/**
  * Recent match ids across EVERY registered player, not just one "anchor" —
  * otherwise a game is missed entirely whenever that one anchor player is the
  * one sitting out the rotation for that match.
+ *
+ * Errors are returned rather than only logged: a scan that fetched nothing
+ * because the API is down must not report the same "no new games" as a scan that
+ * genuinely found nothing.
  */
 async function collectCandidateIds(api, players, lookback) {
   const idSet = new Set();
+  const errors = [];
   for (const player of players) {
     try {
-      const ids = await api.getRecentMatchIds(player.puuid, lookback);
+      const ids = await idsForPlayer(api, player, lookback);
       ids.forEach((id) => idSet.add(id));
     } catch (err) {
-      console.error(`Failed to fetch match history for ${player.riotGameName}#${player.riotTagLine}:`, err.message);
+      const status = err?.response?.status;
+      const detail = status ? `HTTP ${status}` : err.message;
+      console.error(`Failed to fetch match history for ${player.riotGameName}#${player.riotTagLine}: ${detail}`);
+      errors.push({ player: `${player.riotGameName}#${player.riotTagLine}`, status: status ?? null, detail });
     }
   }
-  return [...idSet];
+  return { ids: [...idSet], errors };
 }
 
 /**
@@ -50,11 +88,11 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
   }
 
   const rosterCount = players.length;
-  const trackedPuuids = players.map((p) => p.puuid);
   const nameByDiscordId = Object.fromEntries(players.map((p) => [p.discordId, p.riotGameName]));
-  const playerByPuuid = Object.fromEntries(players.map((p) => [p.puuid, p]));
 
-  const candidateIds = await collectCandidateIds(api, players, lookback);
+  const { ids: candidateIds, errors: apiErrors } = await collectCandidateIds(api, players, lookback);
+  // Recomputed after collectCandidateIds, which may have repaired stale PUUIDs.
+  const trackedPuuidsNow = players.map((p) => p.puuid);
 
   // Anything already scored, or already rejected under this same roster, costs
   // nothing — it never reaches the Riot API again.
@@ -81,7 +119,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
       continue;
     }
 
-    const tracked = match.info.participants.filter((p) => trackedPuuids.includes(p.puuid));
+    const tracked = match.info.participants.filter((p) => trackedPuuidsNow.includes(p.puuid));
     if (tracked.length < 2) {
       newlySkipped.push({ matchId, reason: `only ${tracked.length} registered player(s) played` });
       continue;
@@ -108,13 +146,14 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
   qualifying.sort((a, b) => (order === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp));
   const toScore = qualifying.slice(0, maxToScore);
 
+  const playerByPuuid = Object.fromEntries(players.map((p) => [p.puuid, p]));
   const scored = [];
   for (const { matchId, match } of toScore) {
     const timeline = await api.getTimeline(matchId);
 
     let scores;
     try {
-      scores = scoreMatch(match, { timeline, trackedPuuids });
+      scores = scoreMatch(match, { timeline, trackedPuuids: trackedPuuidsNow });
     } catch (err) {
       // Remakes and other unscorable games are permanently unscorable — cache the
       // rejection rather than re-fetching them on every future scan.
@@ -150,6 +189,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
     remaining: qualifying.length - toScore.length,
     checked: fresh.length,
     cached,
+    apiErrors,
     skippedNow: newlySkipped.length,
     skippedReasons,
     players
