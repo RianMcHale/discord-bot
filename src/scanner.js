@@ -12,6 +12,7 @@
 import { riot } from './riotApi.js';
 import { db } from './storage.js';
 import { scoreMatch } from './scoring/index.js';
+import { isSupportedQueue, unsupportedReason } from './queues.js';
 
 /**
  * Recent match ids across EVERY registered player, not just one "anchor" —
@@ -71,17 +72,33 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, api = riot
       console.error(`Failed to fetch match ${matchId}:`, err?.response?.status || err.message);
       continue;
     }
-    const puuids = match.info.participants.map((p) => p.puuid);
-    const overlap = trackedPuuids.filter((puuid) => puuids.includes(puuid));
-    if (overlap.length >= 2) {
-      qualifying.push({
-        matchId,
-        match,
-        timestamp: match.info.gameEndTimestamp || match.info.gameStartTimestamp || 0
-      });
-    } else {
-      newlySkipped.push({ matchId, reason: `only ${overlap.length} registered player(s) played` });
+    // Wrong mode entirely — ARAM, Arena, bots, URF. The rubrics assume Summoner's
+    // Rift roles and a lane counterpart, neither of which exists there.
+    if (!isSupportedQueue(match.info)) {
+      newlySkipped.push({ matchId, reason: unsupportedReason(match.info) });
+      continue;
     }
+
+    const tracked = match.info.participants.filter((p) => trackedPuuids.includes(p.puuid));
+    if (tracked.length < 2) {
+      newlySkipped.push({ matchId, reason: `only ${tracked.length} registered player(s) played` });
+      continue;
+    }
+
+    // "Played together" means the same side. Tracked players split across both
+    // teams isn't a squad game — the scorecard would list teammates under
+    // "Enemy team" and the bench call would compare across the two.
+    const teams = new Set(tracked.map((p) => p.teamId));
+    if (teams.size > 1) {
+      newlySkipped.push({ matchId, reason: 'registered players were on opposing teams' });
+      continue;
+    }
+
+    qualifying.push({
+      matchId,
+      match,
+      timestamp: match.info.gameEndTimestamp || match.info.gameStartTimestamp || 0
+    });
   }
 
   db.markManySkipped(newlySkipped, rosterCount);
@@ -121,12 +138,18 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, api = riot
     scored.push({ matchId, match, hasTimeline: Boolean(timeline), scores, scoresByDiscordId, nameByDiscordId });
   }
 
+  // Counts per reason, so "no new matches" can say *why* rather than leaving you
+  // to guess whether the bot is broken or you just played ARAM.
+  const skippedReasons = {};
+  for (const { reason } of newlySkipped) skippedReasons[reason] = (skippedReasons[reason] || 0) + 1;
+
   return {
     scored,
     remaining: qualifying.length - toScore.length,
     checked: fresh.length,
     cached,
     skippedNow: newlySkipped.length,
+    skippedReasons,
     players
   };
 }

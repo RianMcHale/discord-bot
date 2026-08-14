@@ -83,6 +83,19 @@ export const db = {
     state.skipped = {};
     write(state);
   },
+  removeGames(matchIds) {
+    if (matchIds.length === 0) return 0;
+    const state = read();
+    let removed = 0;
+    for (const id of matchIds) {
+      if (state.games[id]) {
+        delete state.games[id];
+        removed += 1;
+      }
+    }
+    write(state);
+    return removed;
+  },
 
   // --- matches checked and rejected ------------------------------------------
   // A match with fewer than two tracked players can never be scored, but without

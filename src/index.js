@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { db, dbPath } from './storage.js';
 import { loadCommands, registerCommands } from './commandRegistry.js';
 import { startWatcher } from './watcher.js';
+import { purgeUnsupportedGames } from './maintenance.js';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 client.commands = new Collection();
@@ -12,6 +13,16 @@ client.once('ready', async () => {
   console.log(
     `Data store: ${dbPath} — ${db.allPlayers().length} player(s), ${db.allGames().length} scored game(s)`
   );
+
+  // Games scored before queue filtering existed would otherwise keep skewing
+  // every average. Only queues that are known-unsupported are removed.
+  const purged = purgeUnsupportedGames();
+  if (purged.removed > 0) {
+    const detail = Object.entries(purged.byQueue)
+      .map(([name, n]) => `${n}× ${name}`)
+      .join(', ');
+    console.log(`Removed ${purged.removed} game(s) from unsupported queues: ${detail}`);
+  }
 
   // Registering here means adding or changing a command only needs a deploy —
   // there's no separate step to forget. It's hashed, so a restart that changed

@@ -149,6 +149,52 @@ test('scored games carry the squad scores and the timeline flag', async () => {
   assert.equal(db.allGames()[0].dataQuality, 'full');
 });
 
+test('rejects ARAM and never fetches it again', async () => {
+  db.resetGames();
+  const aram = sharedMatch('ARAM1', 6000);
+  Object.assign(aram.info, { queueId: 450, mapId: 12, gameMode: 'ARAM' });
+
+  const first = fakeApi({ ids: ['ARAM1'], matches: { ARAM1: aram } });
+  const result = await scanForNewGames({ api: first });
+
+  assert.equal(result.scored.length, 0, 'ARAM must not be scored on a Rift rubric');
+  assert.equal(db.allGames().length, 0);
+  assert.equal(first.calls.getTimeline.length, 0, 'no timeline call wasted on a rejected match');
+  assert.ok(Object.keys(result.skippedReasons).some((r) => /Summoner's Rift/.test(r)));
+
+  const second = fakeApi({ ids: ['ARAM1'], matches: { ARAM1: aram } });
+  await scanForNewGames({ api: second });
+  assert.equal(second.calls.getMatch.length, 0, 'the rejection is cached');
+});
+
+test('rejects Arena and rotating modes played on Rift', async () => {
+  db.resetGames();
+  const arena = sharedMatch('ARENA1', 6100);
+  Object.assign(arena.info, { queueId: 1700, mapId: 30, gameMode: 'CHERRY' });
+  const urf = sharedMatch('URF1', 6200);
+  Object.assign(urf.info, { queueId: 1900, mapId: 11, gameMode: 'URF' });
+
+  const api = fakeApi({ ids: ['ARENA1', 'URF1'], matches: { ARENA1: arena, URF1: urf } });
+  const result = await scanForNewGames({ api });
+
+  assert.equal(result.scored.length, 0);
+  assert.equal(result.skippedNow, 2);
+});
+
+test('rejects a match where the squad was split across both teams', async () => {
+  db.resetGames();
+  // p1 stays on team 100; p2 is moved to the enemy side.
+  const split = sharedMatch('SPLIT', 6300);
+  const p2 = split.info.participants.find((p) => p.puuid === 'p2');
+  p2.teamId = 200;
+
+  const api = fakeApi({ ids: ['SPLIT'], matches: { SPLIT: split } });
+  const result = await scanForNewGames({ api });
+
+  assert.equal(result.scored.length, 0, 'teammates would otherwise be listed under "Enemy team"');
+  assert.match(Object.keys(result.skippedReasons).join(' '), /opposing teams/);
+});
+
 test('reports nothing found without claiming it checked nothing', async () => {
   db.resetGames();
   const api = fakeApi({ ids: [], matches: {} });

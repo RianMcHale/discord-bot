@@ -40,10 +40,17 @@ export async function execute(interaction) {
     }
 
     if (result.scored.length === 0) {
-      const cachedNote = result.cached > 0 ? ` (${result.cached} already checked previously — not re-fetched)` : '';
+      const reasons = Object.entries(result.skippedReasons)
+        .sort((a, b) => b[1] - a[1])
+        .map(([reason, n]) => `-# ${n}× ${reason}`)
+        .join('\n');
+      const cachedNote = result.cached > 0 ? `\n-# ${result.cached} already checked previously — not re-fetched` : '';
+
       await interaction.editReply(
-        `No new shared matches found across the squad's last ${lookback} games each${cachedNote}. ` +
-          'Try increasing `lookback`.'
+        `No new **Summoner's Rift** matches found across the squad's last ${lookback} games each. ` +
+          'Try increasing `lookback`.' +
+          (reasons ? `\n${reasons}` : '') +
+          cachedNote
       );
       return;
     }

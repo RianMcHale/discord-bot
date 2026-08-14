@@ -154,6 +154,34 @@ bench call.
 - `/worst` — who the data says should be benched right now.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 
+## Which games get scored
+
+Standard 5v5 Summoner's Rift only:
+
+| Scored | Not scored |
+|---|---|
+| Ranked Solo/Duo (420), Ranked Flex (440) | ARAM (450), Arena (1700/1710) |
+| Normal Draft (400), Normal Blind (430) | URF, ARURF, One for All, Nexus Blitz, Ultimate Spellbook |
+| Quickplay (490), Clash (700) | Co-op vs AI, Custom games |
+
+The rubrics assume Summoner's Rift: five distinct roles, a lane opponent playing the
+same role on the other team, a jungle, and objectives on a known timer. ARAM has none
+of that, and Arena is 2v2v2v2. Scoring them produces confident-looking nonsense — every
+player "Weakest: Economy 0", nine champions listed under "Enemy team" — so they're
+rejected before reaching the scorer, and remembered as rejected so they're never
+re-fetched.
+
+A game also has to have been played **on the same team**. Registered players split
+across both sides isn't a squad game: teammates would be listed as enemies and the
+bench call would compare across the two teams.
+
+Override the list with `ALLOWED_QUEUES` if you want something else — e.g.
+`ALLOWED_QUEUES=420,440` for ranked only, or add `480` if you play Swiftplay (excluded
+by default because its accelerated economy skews the gold-at-14 baselines).
+
+Games from unsupported queues that were scored before this filter existed are removed
+automatically on the next startup, and the count is logged.
+
 ## Auto-posting finished games
 
 Set `DISCORD_WATCH_CHANNEL_ID` and the bot posts each game's scorecard by itself,
@@ -219,8 +247,8 @@ DATA_DIR=/data
   river or the enemy tri-brush is attributed to the nearest lane. Frame snapshots are 60
   seconds apart and miss short ganks entirely, which is why landed ganks (kill events)
   count for more than proximity frames and why proximity is capped.
-- ARAM, Arena and any match where Riot's role detection fails fall back to a role-neutral
-  rubric and are labelled as such. They still count toward the rolling average.
+- A match where Riot's role detection fails falls back to a role-neutral rubric and is
+  labelled as such.
 - Scores stored before this rewrite used the old lobby-relative model and aren't
   comparable. Run `/resetgames` if you want a clean rolling average.
 - A match with fewer than 2 tracked players is remembered as rejected, so every solo

@@ -21,6 +21,15 @@ export const config = {
   riotPlatform: process.env.RIOT_PLATFORM || 'euw1',
   rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10),
 
+  // Comma-separated queue ids to score. Unset uses the standard 5v5 Summoner's
+  // Rift set in queues.js — see there for why ARAM, Arena and the rotating modes
+  // are excluded rather than scored badly.
+  allowedQueues: process.env.ALLOWED_QUEUES
+    ? process.env.ALLOWED_QUEUES.split(',')
+        .map((q) => parseInt(q.trim(), 10))
+        .filter(Number.isFinite)
+    : null,
+
   // Channel the watcher posts finished games to. Unset = watcher disabled and
   // /fetchgame stays manual.
   watchChannelId: process.env.DISCORD_WATCH_CHANNEL_ID || null,
