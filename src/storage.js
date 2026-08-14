@@ -14,7 +14,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// DATA_DIR lets the store live somewhere other than the repo — a mounted volume
+// on a host with an ephemeral filesystem, or a throwaway directory under test.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'db.json');
 
 function ensureDb() {
@@ -87,5 +89,11 @@ export const db = {
   },
   votesForGame(matchId) {
     return read().votes[matchId] || {};
+  },
+  // Every match's votes in one read. votesForGame() re-reads and re-parses the
+  // whole file per call, which is fine for a single game but not for stats that
+  // walk every game ever played.
+  allVotes() {
+    return read().votes || {};
   }
 };

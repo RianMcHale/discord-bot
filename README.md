@@ -141,7 +141,15 @@ bench call.
   Use it when someone disputes a bench call.
 - `/vote player:<@user> rating:<1-5>` — rate a teammate's impact on the most recently
   scored game. Optional, but fills in what stats can't see.
-- `/leaderboard` — rolling average score per player, best to worst.
+- `/leaderboard` — rolling average score per player over the last `ROLLING_WINDOW`
+  games, best to worst. This is recent form, and it's what `/worst` benches on.
+- `/alltime` — career standings across **every** game ever scored. Per player:
+  overall average, games, win rate, best and worst single game, how many times
+  they finished bottom, whether recent form is above or below their own average,
+  and a **per-role average** (`⚡ Mid 67.0 ×6 · 🌲 Jungle 46.8 ×4`). Because scores
+  are role-anchored, those role averages are directly comparable — so the embed
+  also names the squad's **best player in each role**, which is the number a
+  rotation actually needs when deciding who plays what.
 - `/worst` — who the data says should be benched right now.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 
@@ -149,6 +157,16 @@ bench call.
 
 Everything is stored in `data/db.json` (created automatically on first run) — no
 database server needed. Back it up or inspect it directly if you want; it's just JSON.
+
+Set `DATA_DIR` to put it somewhere else. On a host with an ephemeral filesystem
+(Railway, Fly, most container platforms) the repo directory is wiped on every
+deploy, which would reset every registered player and every scored game — and
+`/alltime` is only as good as the history behind it. Mount a persistent volume and
+point `DATA_DIR` at it:
+
+```bash
+DATA_DIR=/data
+```
 
 ## Notes / known limitations
 
