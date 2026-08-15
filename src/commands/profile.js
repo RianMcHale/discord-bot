@@ -52,7 +52,7 @@ export async function execute(interaction) {
     .setColor(0x5865f2)
     .setThumbnail(targetUser.displayAvatarURL?.() ?? null)
     .setDescription(
-      `<@${targetUser.id}> — \`${scoreBar(s.average)}\` **${fmt(s.average)}** overall · ` +
+      `<@${targetUser.id}> — \`${scoreBar(s.rating)}\` **${fmt(s.rating)}** overall · ` +
         `**#${rank}** of ${stats.length}\n` +
         `-# ${s.gamesPlayed} games · ${s.wins}W ${s.losses}L (${s.winRate}%) · benched ${s.benched}×`
     )
@@ -72,7 +72,7 @@ export async function execute(interaction) {
     value: rolesInLaneOrder
       .map((r) => {
         const info = roleInfo(r.role);
-        return `${info.emoji} **${info.label}** \`${scoreBar(r.average)}\` ${fmt(r.average)} · ${r.games} game${r.games === 1 ? '' : 's'}`;
+        return `${info.emoji} **${info.label}** \`${scoreBar(r.rating)}\` ${fmt(r.rating)} · ${r.games} game${r.games === 1 ? '' : 's'}`;
       })
       .join('\n'),
     inline: false

@@ -104,6 +104,58 @@ test('history is most-recent-first', () => {
   assert.equal(steady.history.at(-1).matchId, 'G0');
 });
 
+test('a thin record cannot top the table on a couple of lucky games', () => {
+  // The real case: a 2-game player sat first on 61.1 while everyone above 10
+  // games was in the 40s. A raw average rewards whoever has played least.
+  db.upsertPlayer({ discordId: 'newcomer', riotGameName: 'New', riotTagLine: 'EUW', puuid: 'p4' });
+  db.saveGame('N1', gameRecord({ matchId: 'N1', playedAt: 9e6, scores: { newcomer: playerScore({ composite: 70, role: 'TOP' }) } }));
+  db.saveGame('N2', gameRecord({ matchId: 'N2', playedAt: 9e6 + DAY, scores: { newcomer: playerScore({ composite: 68, role: 'TOP' }) } }));
+
+  const { stats, squadMean } = computeCareerStats();
+  const newcomer = stats.find((s) => s.discordId === 'newcomer');
+  const steady = stats.find((s) => s.discordId === 'steady');
+
+  assert.equal(newcomer.average, 69, 'the raw average is untouched');
+  assert.ok(newcomer.rating < newcomer.average - 8, 'a 2-game record is pulled hard toward the squad');
+  assert.ok(newcomer.rating > squadMean, 'but two good games are still evidence of something');
+
+  // Two good games shouldn't *invert* six decent ones — they genuinely are
+  // evidence. What matters is that a nine-point raw gap stops being a landslide.
+  const rawGap = newcomer.average - steady.average;
+  const ratedGap = newcomer.rating - steady.rating;
+  assert.ok(rawGap > 8, `raw gap should be wide (${rawGap})`);
+  assert.ok(Math.abs(ratedGap) < 2, `rated gap should be near-level, got ${ratedGap}`);
+
+  db.removeGames(['N1', 'N2']);
+});
+
+test('a long record is barely moved by the weighting', () => {
+  const steady = computeCareerStats().stats.find((s) => s.discordId === 'steady');
+  assert.ok(Math.abs(steady.rating - steady.average) < 6, 'an earned average stays close to raw');
+});
+
+test('role ratings are anchored to the player, so one game cannot win a role', () => {
+  // steady has 3 games at MIDDLE and 1 at JUNGLE; the single game must not
+  // outrank the established one just by being higher.
+  db.saveGame('SPIKE', gameRecord({ matchId: 'SPIKE', playedAt: 8e6, scores: { steady: playerScore({ composite: 95, role: 'BOTTOM' }) } }));
+
+  const steady = computeCareerStats().stats.find((s) => s.discordId === 'steady');
+  const spike = steady.byRole.find((r) => r.role === 'BOTTOM');
+  const mid = steady.byRole.find((r) => r.role === 'MIDDLE');
+
+  assert.equal(spike.average, 95, 'raw is preserved');
+  assert.ok(spike.rating < 95, 'a single game is discounted');
+  assert.ok(spike.rating < mid.average + 20, 'and cannot run away from their real level');
+
+  db.removeGames(['SPIKE']);
+});
+
+test('ranking uses the rating, not the raw average', () => {
+  const { stats } = computeCareerStats();
+  const ratings = stats.map((s) => s.rating);
+  assert.deepEqual(ratings, [...ratings].sort((a, b) => b - a), 'sorted by rating, best first');
+});
+
 test('games stored before the rewrite are counted and flagged', () => {
   db.saveGame('LEGACY', {
     matchId: 'LEGACY',

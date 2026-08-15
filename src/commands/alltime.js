@@ -50,7 +50,7 @@ export const data = new SlashCommandBuilder()
   .setDescription('Overall leaderboard across every game the bot has ever scored.');
 
 export async function execute(interaction) {
-  const { stats, totalGames, legacyGames, firstPlayed, lastPlayed } = computeCareerStats();
+  const { stats, squadMean, totalGames, legacyGames, firstPlayed, lastPlayed } = computeCareerStats();
 
   if (stats.length === 0) {
     await interaction.reply('No scored games yet — run `/fetchgame` after your next match.');
@@ -61,7 +61,7 @@ export async function execute(interaction) {
     // Every role they've played, most-played first. Not truncated: there are only
     // five, and a capped list doesn't add up to the game count next to it.
     const roles = s.byRole
-      .map((r) => `${ROLE_EMOJI[r.role] || '❓'} ${ROLE_LABEL[r.role] || r.role} ${fmt(r.average)} ×${r.games}`)
+      .map((r) => `${ROLE_EMOJI[r.role] || '❓'} ${ROLE_LABEL[r.role] || r.role} ${fmt(r.rating)} ×${r.games}`)
       .join(' · ');
 
     const meta = [
@@ -74,7 +74,7 @@ export async function execute(interaction) {
     ].filter(Boolean);
 
     return (
-      `${rankLabel(i)} <@${s.discordId}> — \`${scoreBar(s.average)}\` **${fmt(s.average)}**\n` +
+      `${rankLabel(i)} <@${s.discordId}> — \`${scoreBar(s.rating)}\` **${fmt(s.rating)}**\n` +
       `-# ${meta.join(' · ')}\n` +
       `-# ${roles}`
     );
@@ -86,7 +86,9 @@ export async function execute(interaction) {
     .setTitle('🏆 All-time standings')
     .setColor(0xf1c40f)
     .setDescription(
-      `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n\n` + lines.join('\n\n')
+      `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n` +
+        `-# Weighted by games played — a thin record sits near the squad average (${fmt(squadMean)}) until it's earned.\n\n` +
+        lines.join('\n\n')
     )
     .setFooter({
       text: '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
@@ -100,25 +102,19 @@ export async function execute(interaction) {
   // role until it clears some threshold reads as "nobody is good at Mid" rather
   // than "not enough games yet", and the ×N count already says how thin it is.
   const bestByRole = [];
-  let thinSample = false;
   for (const role of ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY']) {
     const contenders = stats
       .map((s) => ({ s, r: s.byRole.find((r) => r.role === role) }))
       .filter((c) => c.r)
-      .sort((a, b) => b.r.average - a.r.average || b.r.games - a.r.games);
+      .sort((a, b) => b.r.rating - a.r.rating || b.r.games - a.r.games);
     if (contenders.length === 0) continue;
     const { s, r } = contenders[0];
-    if (r.games < 2) thinSample = true;
     // Mentions, matching the list above — using Riot names here made the same
     // person appear under two different names in one embed.
-    bestByRole.push(`${ROLE_EMOJI[role]} ${ROLE_LABEL[role]} — <@${s.discordId}> ${fmt(r.average)} (×${r.games})`);
+    bestByRole.push(`${ROLE_EMOJI[role]} ${ROLE_LABEL[role]} — <@${s.discordId}> ${fmt(r.rating)} (×${r.games})`);
   }
   if (bestByRole.length > 0) {
-    embed.addFields({
-      name: '🎯 Best in role',
-      value: bestByRole.join('\n') + (thinSample ? '\n-# ×1 means a single game — treat those as provisional.' : ''),
-      inline: false
-    });
+    embed.addFields({ name: '🎯 Best in role', value: bestByRole.join('\n'), inline: false });
   }
 
   if (legacyGames > 0) {

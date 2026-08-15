@@ -35,6 +35,24 @@ export function computeRollingStats(windowSize) {
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round1 = (v) => (v === null ? null : Math.round(v * 10) / 10);
 
+// How many games of "prior belief" a rating is anchored against. A raw average
+// isn't a leaderboard — it rewards whoever has played least, and one good game
+// outranks five decent ones. Blending each average with a prior fixes that
+// without a minimum-games cutoff that would hide people entirely: the
+// correction simply fades out as someone plays.
+//
+// Career ratings are pulled toward the squad's own average, which is the
+// empirically right prior for "a player we know nothing about". Role ratings are
+// pulled toward that player's own rating instead — the best guess for how
+// someone performs in a role they've barely played is how they perform overall.
+const PRIOR_GAMES = 5;
+const ROLE_PRIOR_GAMES = 3;
+
+function shrink(average, games, prior, priorGames) {
+  if (average === null || prior === null) return average;
+  return (average * games + prior * priorGames) / (games + priorGames);
+}
+
 /**
  * Career stats across every stored game, best average first.
  *
@@ -102,16 +120,25 @@ export function computeCareerStats(formWindow = 5) {
     }
   }
 
+  // The squad's own average across every game played, weighted by games — the
+  // prior every individual rating is anchored against.
+  const played = [...acc.values()].flatMap((a) => a.scores.map((s) => s.score));
+  const squadMean = mean(played);
+
   const stats = [...acc.values()]
     .filter((a) => a.scores.length > 0)
     .map((a) => {
       const values = a.scores.map((s) => s.score);
       const average = mean(values);
+      const rating = shrink(average, values.length, squadMean, PRIOR_GAMES);
       const form = mean(values.slice(-formWindow));
       const bestGame = a.scores.reduce((x, y) => (y.score > x.score ? y : x));
       const worstGame = a.scores.reduce((x, y) => (y.score < x.score ? y : x));
 
       return {
+        // What the leaderboard ranks and displays. `average` stays the raw
+        // arithmetic mean for anything that needs the unadjusted figure.
+        rating: round1(rating),
         discordId: a.discordId,
         riotName: a.riotName,
         displayName: a.displayName,
@@ -133,8 +160,15 @@ export function computeCareerStats(formWindow = 5) {
         // Most recent first, for sparklines and recent-form displays.
         history: [...a.scores].reverse(),
         byRole: [...a.byRole.entries()]
-          .map(([role, scores]) => ({ role, games: scores.length, average: round1(mean(scores)) }))
-          .sort((x, y) => y.games - x.games || y.average - x.average),
+          .map(([role, scores]) => ({
+            role,
+            games: scores.length,
+            average: round1(mean(scores)),
+            // Anchored to this player's own rating, so one strong game in a role
+            // can't outrank five solid ones when picking who plays where.
+            rating: round1(shrink(mean(scores), scores.length, rating, ROLE_PRIOR_GAMES))
+          }))
+          .sort((x, y) => y.games - x.games || y.rating - x.rating),
         byChampion: [...a.byChampion.entries()]
           .map(([champion, c]) => ({
             champion,
@@ -145,10 +179,11 @@ export function computeCareerStats(formWindow = 5) {
           .sort((x, y) => y.games - x.games || y.average - x.average)
       };
     })
-    .sort((a, b) => b.average - a.average);
+    .sort((a, b) => b.rating - a.rating);
 
   return {
     stats,
+    squadMean: round1(squadMean),
     totalGames: games.length,
     legacyGames,
     firstPlayed: games.length ? games[0].playedAt : null,
