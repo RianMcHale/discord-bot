@@ -158,6 +158,10 @@ bench call.
   rotation actually needs when deciding who plays what.
 - `/worst` — who the data says should be benched right now.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
+- `/resetgames confirm:RESET` — wipe all scored game history. Keeps registered players.
+  Irreversible, so it's **restricted to the bot owner**; anyone else gets a private
+  refusal and nothing is touched. Set `ADMIN_USER_IDS` (comma-separated Discord user
+  ids) to change who can run it — it defaults to the owner, so no config is needed.
 
 ## Which games get scored
 

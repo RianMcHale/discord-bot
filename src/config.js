@@ -21,6 +21,14 @@ export const config = {
   riotPlatform: process.env.RIOT_PLATFORM || 'euw1',
   rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10),
 
+  // Discord user ids allowed to run destructive commands (/resetgames).
+  // Defaults to the bot owner so it works without extra Railway config; override
+  // with ADMIN_USER_IDS (comma-separated) to change who without a code change.
+  adminUserIds: (process.env.ADMIN_USER_IDS || '323144087828168724')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
+
   // Comma-separated queue ids to score. Unset uses the standard 5v5 Summoner's
   // Rift set in queues.js — see there for why ARAM, Arena and the rotating modes
   // are excluded rather than scored badly.
@@ -40,3 +48,14 @@ export const config = {
   watchSettleInterval: parseInt(process.env.WATCH_SETTLE_INTERVAL || '45', 10),
   watchSafetyInterval: parseInt(process.env.WATCH_SAFETY_INTERVAL || '1800', 10)
 };
+
+/**
+ * Whether a Discord user may run destructive commands.
+ *
+ * Fails closed: an empty or missing admin list means nobody can, rather than
+ * everybody. Discord can only gate commands by permission, not by user id, so
+ * this has to be checked at run time.
+ */
+export function isAdmin(discordId) {
+  return config.adminUserIds.includes(discordId);
+}
