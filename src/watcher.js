@@ -160,5 +160,17 @@ export function stopWatcher() {
   timer = null;
 }
 
+/** What the watcher is currently doing, for /status. */
+export function watcherStatus() {
+  return {
+    enabled: Boolean(config.watchChannelId),
+    channelId: config.watchChannelId,
+    running: timer !== null,
+    phase: state.phase,
+    lastSafetyScan: state.lastSafetyScan || null,
+    nextCheckSeconds: delayFor()
+  };
+}
+
 // Exposed for tests.
 export const _internals = { state, tick, delayFor };

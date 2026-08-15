@@ -9,6 +9,15 @@ export function useTempDb() {
   process.env.DATA_DIR = dir;
   process.env.DISCORD_TOKEN ||= 'test-token';
   process.env.DISCORD_CLIENT_ID ||= 'test-client';
+
+  // config.js loads dotenv, which would otherwise pull the developer's real .env
+  // into the test run — a test that passes or fails depending on whose machine
+  // it runs on is worse than no test. dotenv never overwrites an existing key,
+  // so setting these to empty pins them off. Both read as "unset" in config.js.
+  for (const key of ['DISCORD_WATCH_CHANNEL_ID', 'ALLOWED_QUEUES', 'DISCORD_GUILD_ID']) {
+    if (process.env[key] === undefined) process.env[key] = '';
+  }
+
   return dir;
 }
 

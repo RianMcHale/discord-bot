@@ -105,6 +105,9 @@ export const db = {
   // remembering that, every solo queue game any player has ever played gets
   // re-fetched from Riot on every single scan. rosterCount guards the cache: if
   // someone new registers, an old rejection may no longer hold, so it's rechecked.
+  skippedCount() {
+    return Object.keys(read().skipped).length;
+  },
   isSkipped(matchId, rosterCount) {
     const entry = read().skipped[matchId];
     return Boolean(entry) && entry.rosterCount === rosterCount;

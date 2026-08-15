@@ -199,6 +199,10 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
     });
   }
 
+  // Recorded so /status can say when the bot last actually looked, which is the
+  // difference between "nothing to report" and "quietly stopped working".
+  db.setMeta('lastScanAt', Date.now());
+
   // Counts per reason, so "no new matches" can say *why* rather than leaving you
   // to guess whether the bot is broken or you just played ARAM.
   const skippedReasons = {};

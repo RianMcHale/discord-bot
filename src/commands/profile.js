@@ -1,9 +1,14 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { db } from '../storage.js';
 import { computeCareerStats } from '../rollingStats.js';
-import { roleInfo, scoreBar } from '../embeds.js';
+import { roleInfo, scoreBar, ROLE_ORDER } from '../embeds.js';
 
 const fmt = (v) => (Number.isFinite(v) ? v.toFixed(1) : '—');
+
+// A champion needs a couple of games before its average means anything, and the
+// spread between best and worst needs to be wide enough not to be sample noise.
+const MIN_CHAMPION_GAMES = 2;
+const MEANINGFUL_GAP = 10;
 
 // Coarse blocks give a readable shape from a handful of games without pretending
 // to more precision than a 0-100 score has.
@@ -56,9 +61,15 @@ export async function execute(interaction) {
   // Per-role is the heart of this command: the scores are role-anchored, so a
   // player's Mid average and their Jungle average mean the same thing and can be
   // compared directly. That comparison is the whole argument for who plays what.
+  // Lane order rather than most-played: this reads as a vertical list, so the
+  // order people already have in their heads beats sorting by sample size.
+  const rolesInLaneOrder = [...s.byRole].sort(
+    (a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)
+  );
+
   embed.addFields({
     name: '📊 By role',
-    value: s.byRole
+    value: rolesInLaneOrder
       .map((r) => {
         const info = roleInfo(r.role);
         return `${info.emoji} **${info.label}** \`${scoreBar(r.average)}\` ${fmt(r.average)} · ${r.games} game${r.games === 1 ? '' : 's'}`;
@@ -96,13 +107,33 @@ export async function execute(interaction) {
   );
 
   // Only worth showing once a champion has been played enough to mean anything.
-  const champs = s.byChampion.filter((c) => c.games >= 2).slice(0, 5);
+  const champs = s.byChampion.filter((c) => c.games >= MIN_CHAMPION_GAMES);
   if (champs.length > 0) {
+    const ranked = [...champs].sort((a, b) => b.average - a.average);
+    const best = ranked[0];
+    const worst = ranked[ranked.length - 1];
+    const gap = best.average - worst.average;
+    // A verdict only when the spread is big enough to be a real signal rather
+    // than the noise you'd get from any two small samples.
+    const verdict =
+      ranked.length >= 2 && gap >= MEANINGFUL_GAP
+        ? `\n-# **${worst.champion}** is ${fmt(gap)} below **${best.champion}** — worth dropping from the pool.`
+        : '';
+
     embed.addFields({
-      name: '🎭 Most played',
-      value: champs
-        .map((c) => `**${c.champion}** ${fmt(c.average)} · ${c.games} games · ${Math.round((c.wins / c.games) * 100)}% W`)
-        .join('\n'),
+      name: '🎭 Champions',
+      value:
+        champs
+          .slice(0, 6)
+          .map((c) => {
+            const mark = ranked.length >= 2 && gap >= MEANINGFUL_GAP && c.champion === best.champion
+              ? '🟢'
+              : ranked.length >= 2 && gap >= MEANINGFUL_GAP && c.champion === worst.champion
+                ? '🔴'
+                : '▫️';
+            return `${mark} **${c.champion}** ${fmt(c.average)} · ${c.games} games · ${Math.round((c.wins / c.games) * 100)}% W`;
+          })
+          .join('\n') + verdict,
       inline: false
     });
   }
