@@ -147,8 +147,11 @@ bench call.
 - `/profile player:<@user>` — one player's full record: overall average and squad rank,
   a bar per role, form trend, a sparkline of recent games, best and worst single game,
   and most-played champions. `/alltime` is the squad view; this is the individual one.
-- `/leaderboard` — rolling average score per player over the last `ROLLING_WINDOW`
-  games, best to worst. This is recent form, and it's what `/worst` benches on.
+- `/leaderboard` — recent form: each player's average over **their own** last
+  `ROLLING_WINDOW` games (default 10), best to worst. Someone who sat out three of the
+  squad's last ten is still measured across ten of their own, so nobody is judged on a
+  shorter record than everyone else. Needs `LEADERBOARD_MIN_GAMES` games (default 5) to
+  be ranked; anyone below that is listed separately with their progress toward it.
 - `/alltime` — career standings across **every** game ever scored. Per player:
   overall average, games, win rate, best and worst single game, how many times
   they finished bottom, whether recent form is above or below their own average,
@@ -156,7 +159,9 @@ bench call.
   are role-anchored, those role averages are directly comparable — so the embed
   also names the squad's **best player in each role**, which is the number a
   rotation actually needs when deciding who plays what.
-- `/worst` — who the data says should be benched right now.
+- `/worst` — who the data says should be benched right now. Only considers players who
+  have hit the minimum, so a single bad game can't get someone benched, and it says when
+  the call is too close between the bottom two to be a real verdict.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 - `/resetgames confirm:RESET` — wipe all scored game history. Keeps registered players.
   Irreversible, so it's **restricted to the bot owner**; anyone else gets a private

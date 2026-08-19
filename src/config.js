@@ -20,6 +20,9 @@ export const config = {
   riotRegion: process.env.RIOT_REGION || 'americas',
   riotPlatform: process.env.RIOT_PLATFORM || 'euw1',
   rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10),
+  // Games needed before someone can be ranked — or benched — on recent form.
+  // A bench call off one or two games is noise, not evidence.
+  leaderboardMinGames: parseInt(process.env.LEADERBOARD_MIN_GAMES || '5', 10),
 
   // Discord user ids allowed to run destructive commands (/resetgames).
   // Defaults to the bot owner so it works without extra Railway config; override

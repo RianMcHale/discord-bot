@@ -6,30 +6,45 @@ function scoreOf(game, discordId) {
 }
 
 /**
- * Returns { discordId, gamesPlayed, rollingAverage, recentScores: number[] }
- * sorted ascending by rollingAverage (worst first), for the given window size.
- * Players with zero scored games are excluded — there's nothing to judge yet.
+ * Recent form, over each player's OWN last `windowSize` games — not the squad's.
+ * A player who sat out three of the last ten is still measured across ten of
+ * their own, so nobody is judged on a shorter record than everyone else.
+ *
+ * Split into `ranked` and `provisional` around `minGames`: a rolling average
+ * over one or two games is noise, and `/worst` benches people on this.
+ *
+ * @returns {{ranked: object[], provisional: object[], minGames: number}}
+ *   `ranked` is sorted ascending (worst first); `provisional` is sorted by how
+ *   close each player is to qualifying.
  */
-export function computeRollingStats(windowSize) {
+export function computeRollingStats(windowSize, { minGames = 1 } = {}) {
   const players = db.allPlayers();
 
-  const stats = players.map((player) => {
-    const games = db.gamesForPlayer(player.discordId, windowSize); // most recent first
-    const scores = games.map((g) => scoreOf(g, player.discordId));
-    const rollingAverage =
-      scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
+  const stats = players
+    .map((player) => {
+      const games = db.gamesForPlayer(player.discordId, windowSize); // most recent first
+      const scores = games.map((g) => scoreOf(g, player.discordId));
+      const rollingAverage =
+        scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
 
-    return {
-      discordId: player.discordId,
-      riotName: `${player.riotGameName}#${player.riotTagLine}`,
-      displayName: player.riotGameName,
-      gamesPlayed: scores.length,
-      rollingAverage,
-      recentScores: scores
-    };
-  });
+      return {
+        discordId: player.discordId,
+        riotName: `${player.riotGameName}#${player.riotTagLine}`,
+        displayName: player.riotGameName,
+        gamesPlayed: scores.length,
+        rollingAverage,
+        recentScores: scores
+      };
+    })
+    // Players with zero scored games are excluded entirely — there is nothing to
+    // judge yet, not even provisionally.
+    .filter((s) => s.gamesPlayed > 0);
 
-  return stats.filter((s) => s.gamesPlayed > 0).sort((a, b) => a.rollingAverage - b.rollingAverage);
+  return {
+    minGames,
+    ranked: stats.filter((s) => s.gamesPlayed >= minGames).sort((a, b) => a.rollingAverage - b.rollingAverage),
+    provisional: stats.filter((s) => s.gamesPlayed < minGames).sort((a, b) => b.gamesPlayed - a.gamesPlayed)
+  };
 }
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
