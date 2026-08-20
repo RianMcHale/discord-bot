@@ -11,7 +11,7 @@
 // judgement League itself would make.
 
 import { buildContext } from './context.js';
-import { scoreRole } from './roles.js';
+import { scoreRole, PRESSURE_CAP_AGAINST, PRESSURE_CAP_FOR } from './roles.js';
 import { round1, clamp, grade } from './scale.js';
 
 const MIN_SCORABLE_SECONDS = 8 * 60; // anything shorter is a remake
@@ -21,10 +21,14 @@ const MIN_SCORABLE_SECONDS = 8 * 60; // anything shorter is a remake
 function buildNotes(P, ctx) {
   const notes = [];
 
-  if (P.netPressure != null && P.netPressure >= 1.5) {
-    notes.push(`camped ×${P.netPressure.toFixed(1)} (lane bar lowered)`);
-  } else if (P.netPressure != null && P.netPressure <= -1.5) {
-    notes.push(`jungler committed ×${Math.abs(P.netPressure).toFixed(1)} here (lane bar raised)`);
+  // Reported at the value that actually moved the score, not the raw count — a
+  // note saying "×6.9" next to an effect capped at 2 is just misleading.
+  const effectivePressure =
+    P.netPressure == null ? null : clamp(P.netPressure, -PRESSURE_CAP_FOR, PRESSURE_CAP_AGAINST);
+  if (effectivePressure !== null && effectivePressure >= 1.5) {
+    notes.push(`camped ×${effectivePressure.toFixed(1)} (lane bar lowered)`);
+  } else if (effectivePressure !== null && effectivePressure <= -1.5) {
+    notes.push(`jungler committed ×${Math.abs(effectivePressure).toFixed(1)} here (lane bar raised)`);
   }
 
   if (P.role === 'JUNGLE') {
@@ -37,6 +41,12 @@ function buildNotes(P, ctx) {
     if (P.teamLaneGold14 != null && P.teamLaneGold14 <= -1500) {
       notes.push(`lanes ${Math.abs(Math.round(P.teamLaneGold14 / 100)) / 10}k down @${P.benchMinute}`);
     }
+  }
+
+  // Worth surfacing: it's the difference between "lost lane" and "lost lane and
+  // then carried", which the 14-minute snapshot alone cannot show.
+  if (P.goldDiff14 != null && P.postLaneSwing != null && P.goldDiff14 < -300 && P.postLaneSwing > 800) {
+    notes.push(`down ${Math.abs(Math.round(P.goldDiff14))}g @${P.benchMinute}, +${Math.round(P.postLaneSwing)}g after`);
   }
 
   const solo = P.deathTags?.solo || 0;
@@ -97,6 +107,7 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
         goldDiff14: P.goldDiff14 == null ? null : Math.round(P.goldDiff14),
         xpDiff14: P.xpDiff14 == null ? null : Math.round(P.xpDiff14),
         csDiff14: P.csDiff14,
+        postLaneSwing: P.postLaneSwing == null ? null : Math.round(P.postLaneSwing),
         netJunglePressure: P.netPressure == null ? null : round1(P.netPressure),
         teamEpicControl: P.teamEpicControl == null ? null : round1(P.teamEpicControl * 100),
         epicShare: P.epicShare == null ? null : round1(P.epicShare * 100),

@@ -108,7 +108,12 @@ function buildTimeline(line, durationMinutes) {
     frames.push({ timestamp: m * 60000, participantFrames, events: [] });
   }
 
-  const ev = (m, e) => frames[m].events.push({ timestamp: m * 60000 + 1, ...e });
+  // Events are written at fixed minutes, so a shorter game simply doesn't have
+  // the later ones rather than indexing past the end of the frame list.
+  const ev = (m, e) => {
+    if (m >= frames.length) return;
+    frames[m].events.push({ timestamp: m * 60000 + 1, ...e });
+  };
 
   // Three ganks on top by the enemy jungler.
   [5, 8, 11].forEach((m) =>

@@ -309,6 +309,14 @@ export function buildContext(match, timeline = null) {
     p.goldDiff14 = p.gold14 - opp.gold14;
     p.xpDiff14 = (p.xp14 ?? 0) - (opp.xp14 ?? 0);
     p.csDiff14 = (p.cs14 ?? 0) - (opp.cs14 ?? 0);
+
+    // Everything earned AFTER laning, measured against the same counterpart.
+    // A lane snapshot at 14 minutes says nothing about a scaling champion who
+    // was a thousand down then and the highest-damage player on the map by 34.
+    const minePost = p.raw.goldEarned - p.gold14;
+    const theirsPost = opp.raw.goldEarned - opp.gold14;
+    p.goldDiffEnd = p.raw.goldEarned - opp.raw.goldEarned;
+    p.postLaneSwing = minePost - theirsPost;
   }
 
   // Bot lane is a 2v2, so the pair's combined economy is the honest read on who
@@ -436,11 +444,24 @@ export function buildContext(match, timeline = null) {
   for (const p of players) {
     if (!zoneForRole(p.role)) continue; // junglers don't receive lane pressure
     const v = visitCount.get(p.participantId);
-    // A landed gank is hard evidence. Frame snapshots are 60s apart so they miss
-    // most ganks entirely and over-count a jungler who parks in a lane — worth
-    // less each, and capped.
+
+    // The two directions do not deserve equal trust.
+    //
+    // Pressure AGAINST you is corroborated by deaths: the enemy jungler is in
+    // the kill feed. Pressure FOR you is mostly inferred from position frames,
+    // and "my jungler was standing nearby" is weak evidence they did anything —
+    // especially in bot lane, which sits right next to the bot jungle, so a
+    // jungler farming their own camps reads as a gank setup. Counting that at
+    // full weight raises the bar on a laner for their jungler's pathing.
+    //
+    // So proximity counts fully against, a third as much for, and only landed
+    // takedowns move the bar up at full strength.
     p.pressureAgainst = p.gankDeaths + Math.min(v.against, 4) * 0.6;
-    p.pressureFor = helpReceived.get(p.participantId) + Math.min(v.for, 4) * 0.6;
+    // Assisted takedowns are capped too: a jungler who was there for five early
+    // kills did help, but past a point it stops saying anything more about what
+    // the laner was expected to achieve, and an uncapped figure reads as a much
+    // bigger effect than it can actually have on the score.
+    p.pressureFor = Math.min(helpReceived.get(p.participantId), 3) + Math.min(v.for, 3) * 0.3;
     p.netPressure = p.pressureAgainst - p.pressureFor;
   }
 

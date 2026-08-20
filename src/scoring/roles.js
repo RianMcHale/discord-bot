@@ -38,7 +38,29 @@ export const BASELINE = {
 // 5k-down lane can't be fully excused by "I got camped".
 const PRESSURE_GOLD = 380;
 const PRESSURE_XP = 240;
-const PRESSURE_CAP = 3;
+// Asymmetric on purpose. Lowering the bar for a camped laner is backed by kill
+// events; raising it for a laner whose jungler "helped" is inferred from weaker
+// evidence, so it can move the bar less far. Wrongly excusing a bad lane is a
+// mild error; wrongly punishing a laner for their jungler's pathing is not.
+export const PRESSURE_CAP_AGAINST = 3;
+export const PRESSURE_CAP_FOR = 2;
+
+// A lane snapshot describes a smaller share of a longer game. Laning is most of
+// a 22-minute game and a prelude to a 40-minute one, so its weight scales with
+// how long the game actually ran. Late-scaling champions were being graded as if
+// minute 14 decided the match.
+const LANE_REFERENCE_MINUTES = 27;
+
+// How far a post-laning recovery can lift a lost lane, and how far throwing a
+// lead can drag one down. Recovery is worth more than the throw is punished:
+// coming back from a deficit takes play, losing a lead often takes a teamfight.
+const COMEBACK_MAX = 28;
+const THROWN_LEAD_MAX = 10;
+
+/** Scales a lane component's weight by game length. */
+export function laneWeight(base, ctx) {
+  return Math.round(base * clamp(LANE_REFERENCE_MINUTES / ctx.minutes, 0.5, 1.2));
+}
 
 const opponentOf = (P, ctx) => (P.counterpartPuuid ? ctx.byPuuid.get(P.counterpartPuuid) : null) || null;
 
@@ -55,7 +77,7 @@ const scaleToBench = (value, P) => value * clamp((P.benchMinute ?? 14) / 14, 0.4
  * lane, and the score says so.
  */
 function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'individual' } = {}) {
-  const net = clamp(P.netPressure ?? 0, -PRESSURE_CAP, PRESSURE_CAP);
+  const net = clamp(P.netPressure ?? 0, -PRESSURE_CAP_FOR, PRESSURE_CAP_AGAINST);
   const goldPivot = -net * PRESSURE_GOLD;
   const xpPivot = -net * PRESSURE_XP;
 
@@ -73,18 +95,37 @@ function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'indiv
   const goldScore = fromDiff(goldDiff, scaleToBench(full, P), { pivot: scaleToBench(goldPivot, P) });
   const xpScore = fromDiff(P.xpDiff14, scaleToBench(xpFull, P), { pivot: scaleToBench(xpPivot, P) });
 
-  const score = weightedMean([
+  const laned = weightedMean([
     { score: goldScore, weight: 0.6 },
     { score: xpScore, weight: 0.4 }
   ]);
   if (goldScore === null && xpScore === null) return null;
 
+  // What happened after laning, against the same counterpart. Losing lane and
+  // then out-earning them for twenty minutes is a different game from losing
+  // lane and staying lost, and the 14-minute snapshot cannot tell them apart.
+  const swing = P.postLaneSwing;
+  let comeback = 0;
+  if (Number.isFinite(swing) && Number.isFinite(goldDiff)) {
+    if (goldDiff < -300 && swing > 0) {
+      // Credit is proportional to how much of the deficit was actually erased.
+      comeback = clamp(swing / Math.max(-goldDiff, 800), 0, 1) * COMEBACK_MAX;
+    } else if (goldDiff > 300 && swing < 0) {
+      comeback = -clamp(-swing / Math.max(goldDiff, 800), 0, 1) * THROWN_LEAD_MAX;
+    }
+  }
+
+  const score = clamp(laned + comeback, 0, 100);
+
   const detail =
     Number.isFinite(goldDiff) &&
     `${goldDiff >= 0 ? '+' : ''}${Math.round(goldDiff)}g @${P.benchMinute ?? 14}` +
-      (net !== 0 ? ` (bar ${goldPivot >= 0 ? '+' : ''}${Math.round(goldPivot)}g)` : '');
+      (net !== 0 ? ` (bar ${goldPivot >= 0 ? '+' : ''}${Math.round(goldPivot)}g)` : '') +
+      (Math.abs(comeback) >= 1
+        ? ` · ${comeback > 0 ? '+' : ''}${Math.round(comeback)} post-lane (${swing >= 0 ? '+' : ''}${Math.round(swing)}g)`
+        : '');
 
-  return { score, detail: detail || null };
+  return { score, detail: detail || null, comeback };
 }
 
 /**
@@ -192,7 +233,7 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3 } = {}) {
  */
 function pressureAdjusted(score, P, perCommit = 4) {
   if (score === null || P.netPressure == null) return score;
-  return clamp(score + clamp(P.netPressure, -PRESSURE_CAP, PRESSURE_CAP) * perCommit, 0, 100);
+  return clamp(score + clamp(P.netPressure, -PRESSURE_CAP_FOR, PRESSURE_CAP_AGAINST) * perCommit, 0, 100);
 }
 
 function visionComponent(P, ctx, baseline) {
@@ -248,7 +289,7 @@ function scoreTop(P, ctx) {
 
   return {
     components: [
-      component('lane', 'Lane', 25, lane?.score, lane?.detail),
+      component('lane', 'Lane', laneWeight(25, ctx), lane?.score, lane?.detail),
       component('sidelane', 'Side lane', 15, side.score, side.detail),
       component('combat', 'Teamfight', 22, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.4, specialist: true }))),
       component('deaths', 'Deaths', 20, ...pick(deathComponent(P, ctx, b))),
@@ -340,7 +381,7 @@ function scoreMid(P, ctx) {
 
   return {
     components: [
-      component('lane', 'Lane', 24, lane?.score, lane?.detail),
+      component('lane', 'Lane', laneWeight(24, ctx), lane?.score, lane?.detail),
       component('combat', 'Damage', 24, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.15 }))),
       component('roam', 'Roaming', 18, roam.score, roam.detail),
       component('deaths', 'Deaths', 16, ...pick(deathComponent(P, ctx, b))),
@@ -382,7 +423,7 @@ function scoreAdc(P, ctx) {
     components: [
       component('combat', 'Damage', 28, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.1 }))),
       component('deaths', 'Positioning', 20, ...pick(deathComponent(P, ctx, b))),
-      component('lane', 'Lane', 18, lane?.score, lane?.detail),
+      component('lane', 'Lane', laneWeight(18, ctx), lane?.score, lane?.detail),
       component('economy', 'Farming', 16, economy.score, economy.detail),
       component('structures', 'Objectives', 12, structures.score, structures.detail),
       component('presence', 'Presence', 6, ...pick(participationComponent(P, ctx, b)))
@@ -418,7 +459,7 @@ function scoreSupport(P, ctx) {
       component('utility', 'Utility', 22, utility.score, utility.detail),
       component('presence', 'Participation', 18, ...pick(participationComponent(P, ctx, b))),
       component('deaths', 'Deaths', 12, ...pick(deathComponent(P, ctx, b))),
-      component('lane', 'Bot lane', 12, lane?.score, lane?.detail),
+      component('lane', 'Bot lane', laneWeight(12, ctx), lane?.score, lane?.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.3 })))
     ]
   };

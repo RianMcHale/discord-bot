@@ -62,11 +62,30 @@ test('every player scores on their own role rubric', () => {
   const keysFor = (puuid) => scored[puuid].components.map((c) => c.key).sort().join(',');
   assert.notEqual(keysFor(puuids.farmingJungler), keysFor(puuids.campedTop));
   assert.notEqual(keysFor(puuids.support), keysFor(puuids.adc));
-  // Weights within a rubric always total 100.
+  // Non-lane weights are fixed and total the same in every game; the lane weight
+  // is the one that moves, so the sum sits just under 100 in a long game.
   for (const s of Object.values(scored)) {
     const total = s.components.reduce((a, c) => a + c.weight, 0);
-    assert.equal(total, 100, `${s.role} weights should sum to 100, got ${total}`);
+    assert.ok(total >= 90 && total <= 105, `${s.role} weights out of range: ${total}`);
   }
+});
+
+test('the lane snapshot counts for less the longer the game runs', () => {
+  const laneWeightIn = (minutes) => {
+    const s = campedTopScenario({ durationMinutes: minutes });
+    const scores = scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] });
+    return scores[s.puuids.mid].components.find((c) => c.key === 'lane').weight;
+  };
+
+  // Laning is most of a 20-minute game and a prelude to a 45-minute one. A
+  // late-scaling champion shouldn't be graded as if minute 14 decided the match.
+  const short = laneWeightIn(20);
+  const reference = laneWeightIn(27);
+  const long = laneWeightIn(45);
+
+  assert.ok(short > reference, `short game should weight lane more (${short} vs ${reference})`);
+  assert.ok(long < reference, `long game should weight lane less (${long} vs ${reference})`);
+  assert.ok(long >= reference * 0.45, 'but never to nothing');
 });
 
 test('scores stay inside 0-100 and are always finite', () => {

@@ -66,6 +66,27 @@ compared to your counterpart's context-weighted deaths — not to a raw per-minu
 enemy support's, not to an ADC's. The old damage-per-gold metric quietly punished every
 support who bought support items.
 
+**Scaling champions aren't graded as if minute 14 decided the game.** Two corrections:
+
+- **The lane weight scales with game length.** Laning is most of a 22-minute game and a
+  prelude to a 40-minute one, so its share of the grade shrinks as the game runs long
+  (reference point 27 minutes, clamped to 0.5×–1.2×). Everything else — damage,
+  teamfights, objectives — takes up the slack automatically.
+- **A comeback is credited.** Gold earned *after* laning is compared against the same
+  counterpart. Losing lane and then out-earning them for twenty minutes lifts the lane
+  score by up to 28 points, in proportion to how much of the deficit was actually
+  erased. It can never turn a lost lane into a won one. The reverse also applies:
+  building a lead and then getting out-earned costs up to 10 — less than a comeback
+  earns, because coming back takes play while losing a lead often takes one bad fight.
+
+**Jungle pressure is trusted asymmetrically.** Pressure *against* you is corroborated by
+deaths — the enemy jungler is in the kill feed. Pressure *for* you is mostly inferred
+from position frames, and "my jungler was standing nearby" is weak evidence they did
+anything, especially in bot lane which sits right beside the bot jungle. So proximity
+counts fully against and a third as much for, and the bar can be raised by at most 2
+commitments against 3 for lowering. Wrongly excusing a bad lane is a mild error; wrongly
+punishing a laner for their jungler's pathing is not.
+
 Every component also falls back to a role baseline (rough SR averages), so a lane where
 both players played badly doesn't hand one of them a good score for being marginally less
 bad.
