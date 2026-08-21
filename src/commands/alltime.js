@@ -82,14 +82,22 @@ export async function execute(interaction) {
 
   const span = firstPlayed && lastPlayed ? ` · ${shortDate(firstPlayed)} – ${shortDate(lastPlayed)}` : '';
 
+  // Discord rejects the whole message if the description passes 4096 characters,
+  // which at ~190 per player means a roster of about 21. Trim to what fits rather
+  // than failing to send anything at all.
+  const DESCRIPTION_LIMIT = 4096;
+  const header =
+    `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n` +
+    `-# Weighted by games played — a thin record sits near the squad average (${fmt(squadMean)}) until it's earned.\n\n`;
+  let shown = lines.length;
+  const fits = () => header.length + lines.slice(0, shown).join('\n\n').length + 80 <= DESCRIPTION_LIMIT;
+  while (shown > 1 && !fits()) shown -= 1;
+  const trimmed = shown < lines.length ? `\n\n-# …and ${lines.length - shown} more — use \`/profile\`.` : '';
+
   const embed = new EmbedBuilder()
     .setTitle('🏆 All-time standings')
     .setColor(0xf1c40f)
-    .setDescription(
-      `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n` +
-        `-# Weighted by games played — a thin record sits near the squad average (${fmt(squadMean)}) until it's earned.\n\n` +
-        lines.join('\n\n')
-    )
+    .setDescription(header + lines.slice(0, shown).join('\n\n') + trimmed)
     .setFooter({
       text: '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
     });

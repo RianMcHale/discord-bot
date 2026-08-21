@@ -20,7 +20,7 @@
 import { config } from './config.js';
 import { db } from './storage.js';
 import { riot } from './riotApi.js';
-import { scanForNewGames } from './scanner.js';
+import { scanForNewGames, repairPuuid } from './scanner.js';
 import { buildMatchEmbed } from './embeds.js';
 
 const SETTLE_ATTEMPTS = 8; // ~6 minutes at the default 45s interval
@@ -34,18 +34,33 @@ const state = {
   lastSafetyScan: 0
 };
 
-/** True as soon as any tracked player is found in a game — stops asking after the first hit. */
+/**
+ * True as soon as any tracked player is found in a game — stops asking after the
+ * first hit.
+ *
+ * A stale PUUID answers 400 here, not 404, so before this repaired them a key
+ * rotation left the watcher permanently blind: no player ever read as in-game,
+ * so LIVE and SETTLING never fired and only the half-hourly safety scan noticed
+ * anything. The repair is the same one the scanner uses.
+ */
 async function anyPlayerInGame(players) {
+  let live = false;
   for (const player of players) {
     try {
-      if (await riot.getActiveGame(player.puuid)) return true;
+      if (await riot.getActiveGame(player.puuid)) live = true;
     } catch (err) {
       const status = err?.response?.status;
       if (status === 403) throw err; // expired key — surface it, don't swallow
+      if (status === 400) {
+        // Keep going after a repair rather than returning: the point is to leave
+        // every stale PUUID fixed before the next tick needs them.
+        await repairPuuid(riot, player).catch(() => {});
+      }
       // Anything else is transient for this one player; keep checking the rest.
     }
+    if (live) return true;
   }
-  return false;
+  return live;
 }
 
 async function scanAndPost(client, { maxToScore = 3 } = {}) {

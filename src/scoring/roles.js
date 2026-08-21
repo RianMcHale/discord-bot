@@ -467,7 +467,11 @@ function scoreSupport(P, ctx) {
   // phase are counted alongside raw participation, against the enemy support who
   // had the same option.
   const participation = participationComponent(P, ctx, b);
-  const roamScore = opp ? versus(P.roamTakedowns, opp.roamTakedowns, { prior: 1.5, gain: 1.35 }) : null;
+  // Roams are only knowable from the timeline. Without one this has to drop out
+  // rather than resolve to a neutral 50, which would dilute the real
+  // participation signal with a number that means nothing.
+  const roamScore =
+    opp && ctx.hasTimeline ? versus(P.roamTakedowns, opp.roamTakedowns, { prior: 1.5, gain: 1.35 }) : null;
   const presence = {
     score: weightedMean([
       { score: participation.score, weight: 0.7 },

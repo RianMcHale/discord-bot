@@ -14,7 +14,7 @@ db.upsertPlayer({ discordId: 'd1', riotGameName: 'One', riotTagLine: 'EUW', puui
 db.upsertPlayer({ discordId: 'd2', riotGameName: 'Two', riotTagLine: 'EUW', puuid: 'p2' });
 
 /** A Riot client that serves canned matches and counts every call. */
-function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], accounts = {}, historyStatus = null }) {
+function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], accounts = {}, historyStatus = null, timelineFails = [] }) {
   const calls = { getRecentMatchIds: [], getMatch: [], getTimeline: [], getAccountByRiotId: [] };
   return {
     calls,
@@ -38,7 +38,8 @@ function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], acc
     },
     async getTimeline(id) {
       calls.getTimeline.push(id);
-      return timelines[id] ?? null;
+      if (timelineFails.includes(id)) return { timeline: null, transientFailure: true, status: 429 };
+      return { timeline: timelines[id] ?? null, transientFailure: false };
     }
   };
 }

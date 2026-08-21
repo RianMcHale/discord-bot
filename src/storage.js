@@ -34,14 +34,35 @@ function ensureDb() {
 
 function read() {
   ensureDb();
-  // Spread over EMPTY so a db written by an older version (no `skipped` key, or
-  // carrying the removed `votes` key) still reads cleanly.
-  const parsed = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-  return { ...EMPTY, ...parsed };
+  try {
+    // Spread over EMPTY so a db written by an older version (no `skipped` key, or
+    // carrying the removed `votes` key) still reads cleanly.
+    const parsed = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+    return { ...EMPTY, ...parsed };
+  } catch (err) {
+    // An unreadable file used to throw out of every command and every watcher
+    // tick, taking the whole bot down until someone edited JSON by hand. Move it
+    // aside and carry on: the backup keeps the data recoverable, and a bot that
+    // runs is more useful than one that refuses to start.
+    const backup = `${DB_PATH}.corrupt-${Date.now()}`;
+    try {
+      fs.copyFileSync(DB_PATH, backup);
+    } catch {
+      /* the backup is best-effort; never let it stop recovery */
+    }
+    console.error(`db.json could not be read (${err.message}). Backed up to ${backup}, starting from empty.`);
+    fs.writeFileSync(DB_PATH, JSON.stringify(EMPTY, null, 2));
+    return { ...EMPTY };
+  }
 }
 
 function write(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  // Write-then-rename, because rename is atomic within a filesystem. A plain
+  // writeFileSync that is interrupted — a deploy, an OOM kill — leaves a
+  // half-written file behind, which is how the corruption above happens.
+  const tmp = `${DB_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, DB_PATH);
 }
 
 export const db = {

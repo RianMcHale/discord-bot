@@ -18,6 +18,7 @@ const LANE_PHASE_MS = 15 * 60 * 1000;
 const BENCH_MINUTE = 14; // end of laning — the standard checkpoint for lane state
 const MAP_DIAGONAL_SUM = 15000; // x+y along the line that splits the two halves
 const GANK_RADIUS = 2400; // jungler-to-laner distance that counts as "in my lane"
+const TRADE_RADIUS = 3000; // two deaths this close together are the same fight
 const LANE_CONTEST_RADIUS = 2900; // opponent must be there too, or it's just farming
 
 // Weighted so "objectives taken" reflects actual macro value rather than a raw
@@ -117,8 +118,15 @@ function weighDeath(ev, { gameDurationMs, victimTeamId, tradeWindowKills, enemyJ
   let w = attackers === 1 ? 1.25 : attackers === 2 ? 1.0 : attackers === 3 ? 0.75 : 0.55;
   const tags = [attackers === 1 ? 'solo' : attackers >= 4 ? 'teamfight' : 'collapsed'];
 
+  // A trade means someone died *in the same fight*, not merely at the same time.
+  // Without the distance check, a kill on the far side of the map inside a 12
+  // second window counted as a trade — so in a high-kill game nearly every death
+  // was discounted 40%, and death discipline stopped separating anyone.
   const traded = tradeWindowKills.some(
-    (k) => k.victimTeamId !== victimTeamId && Math.abs(k.timestamp - ev.timestamp) <= 12000
+    (k) =>
+      k.victimTeamId !== victimTeamId &&
+      Math.abs(k.timestamp - ev.timestamp) <= 12000 &&
+      dist(k.position, ev.position) <= TRADE_RADIUS
   );
   if (traded) {
     w *= 0.6;
@@ -241,6 +249,9 @@ export function buildContext(match, timeline = null) {
       netPressure: null,
       gankDeaths: 0,
       gankTakedowns: 0,
+      roamTakedowns: 0,
+      postLaneSwing: null,
+      teamAvgKp: null,
       laneVisitsGiven: 0, // jungle: lane visits this player made
       weightedDeathsPerMin: null,
       deathTags: null,
@@ -327,7 +338,6 @@ export function buildContext(match, timeline = null) {
     // was a thousand down then and the highest-damage player on the map by 34.
     const minePost = p.raw.goldEarned - p.gold14;
     const theirsPost = opp.raw.goldEarned - opp.gold14;
-    p.goldDiffEnd = p.raw.goldEarned - opp.raw.goldEarned;
     p.postLaneSwing = minePost - theirsPost;
   }
 

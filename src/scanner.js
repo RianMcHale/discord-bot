@@ -27,6 +27,16 @@ import { enemySummary } from './embeds.js';
  * The Riot ID is the durable identifier, so on that failure we re-resolve the
  * PUUID from it, save the new one and retry.
  */
+export async function repairPuuid(api, player) {
+  const account = await api.getAccountByRiotId(player.riotGameName, player.riotTagLine);
+  if (!account?.puuid || account.puuid === player.puuid) return null;
+
+  console.log(`Refreshed stale PUUID for ${player.riotGameName}#${player.riotTagLine}`);
+  db.upsertPlayer({ discordId: player.discordId, puuid: account.puuid });
+  player.puuid = account.puuid; // keep the caller's copy in step
+  return account.puuid;
+}
+
 async function idsForPlayer(api, player, lookback) {
   try {
     return await api.getRecentMatchIds(player.puuid, lookback);
@@ -35,13 +45,9 @@ async function idsForPlayer(api, player, lookback) {
     // 400 is the decryption failure; 404 covers a PUUID that no longer resolves.
     if (status !== 400 && status !== 404) throw err;
 
-    const account = await api.getAccountByRiotId(player.riotGameName, player.riotTagLine);
-    if (!account?.puuid || account.puuid === player.puuid) throw err;
-
-    console.log(`Refreshed stale PUUID for ${player.riotGameName}#${player.riotTagLine}`);
-    db.upsertPlayer({ discordId: player.discordId, puuid: account.puuid });
-    player.puuid = account.puuid; // keep this scan's tracked list in step
-    return await api.getRecentMatchIds(account.puuid, lookback);
+    const fresh = await repairPuuid(api, player);
+    if (!fresh) throw err;
+    return await api.getRecentMatchIds(fresh, lookback);
   }
 }
 
@@ -149,8 +155,19 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
 
   const playerByPuuid = Object.fromEntries(players.map((p) => [p.puuid, p]));
   const scored = [];
+  let deferred = 0;
   for (const { matchId, match } of toScore) {
-    const timeline = await api.getTimeline(matchId);
+    const { timeline, transientFailure } = await api.getTimeline(matchId);
+
+    // A game is stored with whatever data was available when it was scored, and
+    // never re-scored. Saving one now, with a rate limit or an expired key having
+    // eaten the timeline, would bake a permanently degraded score into history.
+    // Leaving it unscored costs nothing: the next scan picks it up again.
+    if (transientFailure) {
+      console.error(`Deferring ${matchId} — timeline fetch failed, will retry on the next scan.`);
+      deferred += 1;
+      continue;
+    }
 
     let scores;
     try {
@@ -210,7 +227,10 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
 
   return {
     scored,
-    remaining: qualifying.length - toScore.length,
+    // Deferred games are still "remaining" — they were not scored and will be
+    // retried, so a caller reporting a backlog must count them.
+    remaining: qualifying.length - toScore.length + deferred,
+    deferred,
     checked: fresh.length,
     cached,
     apiErrors,
