@@ -258,6 +258,18 @@ export function buildContext(match, timeline = null) {
   const byId = new Map(players.map((p) => [p.participantId, p]));
   const byPuuid = new Map(players.map((p) => [p.puuid, p]));
 
+  // Average kill participation across each team. Kill participation is a share
+  // of your own team's kills, so it compresses hard when a game produces a lot
+  // of them: in a 38-kill stomp full of solo picks, nobody can be present for
+  // 60% of them, and every player reads as absent against a fixed baseline.
+  // This is the yardstick that says what "normal involvement" looked like in
+  // THIS game — it rises in teamfight-heavy games and falls in pick-heavy ones.
+  for (const teamId of [100, 200]) {
+    const side = players.filter((p) => p.teamId === teamId);
+    const avg = side.length ? side.reduce((s, p) => s + p.kp, 0) / side.length : null;
+    side.forEach((p) => (p.teamAvgKp = avg));
+  }
+
   // --- lane counterparts: the player whose job was identical to yours ---------
   for (const p of players) {
     if (p.role === 'UNKNOWN') continue;
@@ -396,18 +408,35 @@ export function buildContext(match, timeline = null) {
   // Being handed two free kills by your jungler and still ending laning even is
   // a worse result than going even with no help at all.
   const helpReceived = new Map(players.map((p) => [p.participantId, 0]));
+  const roamTakedowns = new Map(players.map((p) => [p.participantId, 0]));
   for (const ev of kills) {
     if (ev.timestamp >= LANE_PHASE_MS) continue;
     const victim = byId.get(ev.victimId);
     if (!victim) continue;
-    const allyJungler = junglers[victim.teamId === 100 ? 200 : 100];
-    if (!allyJungler) continue;
+    const killerTeam = victim.teamId === 100 ? 200 : 100;
+    const allyJungler = junglers[killerTeam];
     const participants = [ev.killerId, ...(ev.assistingParticipantIds || [])];
-    if (!participants.includes(allyJungler.participantId)) continue;
+    const junglerThere = allyJungler && participants.includes(allyJungler.participantId);
+    const where = laneZone(ev.position);
+
     for (const id of participants) {
       const helper = byId.get(id);
-      if (!helper || helper.role === 'JUNGLE' || helper.role === 'UNKNOWN') continue;
-      helpReceived.set(id, helpReceived.get(id) + 1);
+      if (!helper || helper.teamId !== killerTeam) continue;
+      const myLane = zoneForRole(helper.role);
+      if (!myLane) continue; // junglers neither receive help nor "roam"
+
+      if (where && where !== myLane) {
+        // A takedown away from your own lane during laning phase. For a support
+        // this is the whole point of leaving a won bot lane.
+        roamTakedowns.set(id, roamTakedowns.get(id) + 1);
+      } else if (junglerThere) {
+        // Only a kill IN your lane counts as your jungler having helped you.
+        // Without that check, any skirmish the jungler joined raised the lane bar
+        // for everyone present — which hits supports hardest, since they assist
+        // on nearly everything and would be permanently graded as though their
+        // jungler had handed them the lane.
+        helpReceived.set(id, helpReceived.get(id) + 1);
+      }
     }
   }
 
@@ -440,6 +469,8 @@ export function buildContext(match, timeline = null) {
       }
     }
   }
+
+  for (const p of players) p.roamTakedowns = roamTakedowns.get(p.participantId) ?? 0;
 
   for (const p of players) {
     if (!zoneForRole(p.role)) continue; // junglers don't receive lane pressure

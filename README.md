@@ -79,12 +79,24 @@ support who bought support items.
   building a lead and then getting out-earned costs up to 10 — less than a comeback
   earns, because coming back takes play while losing a lead often takes one bad fight.
 
+**Roaming off a won lane is credited, not punished.** A takedown away from your own
+lane during laning phase counts as a roam, and for supports it's part of the
+Participation grade alongside raw kill participation. Leaving a bot lane you've already
+won is the job, not a dereliction of it.
+
+**Kill participation is graded against how the game spread its kills.** KP is a share of
+your own team's kills, so a 38-kill rout of solo picks compresses everyone's number —
+the highest on the team can sit below a role baseline calibrated for a normal game.
+The baseline is rescaled by the team's average participation, so it rises in
+teamfight-heavy games and falls in pick-heavy ones.
+
 **Jungle pressure is trusted asymmetrically.** Pressure *against* you is corroborated by
 deaths — the enemy jungler is in the kill feed. Pressure *for* you is mostly inferred
 from position frames, and "my jungler was standing nearby" is weak evidence they did
 anything, especially in bot lane which sits right beside the bot jungle. So proximity
-counts fully against and a third as much for, and the bar can be raised by at most 2
-commitments against 3 for lowering. Wrongly excusing a bad lane is a mild error; wrongly
+counts fully against and a third as much for, only a kill **in your own lane** counts as
+your jungler having helped you, and the bar can be raised by at most 2 commitments
+against 3 for lowering. Wrongly excusing a bad lane is a mild error; wrongly
 punishing a laner for their jungler's pathing is not.
 
 Every component also falls back to a role baseline (rough SR averages), so a lane where

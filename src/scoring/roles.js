@@ -251,16 +251,34 @@ function visionComponent(P, ctx, baseline) {
   return { score, detail: `${P.visionPerMin.toFixed(2)} vis/min · ${P.controlWards} pinks` };
 }
 
-/** Kill participation, weighted toward the fights after laning ends. */
+// Average kill participation across a team in a typical game — roughly 1.8
+// assists per kill, so takedowns come to ~2.8x the kill count spread over five
+// players. The role baselines are calibrated against this.
+const TYPICAL_TEAM_AVG_KP = 0.55;
+
+/**
+ * Kill participation, weighted toward the fights after laning ends.
+ *
+ * The baseline is rescaled by how this specific game distributed its kills.
+ * Kill participation is a share of your own team's kills, so a 38-kill game of
+ * solo picks compresses everyone's number — the highest on the team can sit
+ * below a role baseline that assumes a normal game. Grading against the fixed
+ * figure marked a support who was second-most-involved on their team as absent.
+ */
 function participationComponent(P, ctx, baseline) {
-  const overall = versus(P.kp, baseline.kp, { prior: 0.1, gain: 1.2 });
-  const late = P.lateKp == null ? null : versus(P.lateKp, baseline.kp, { prior: 0.1, gain: 1.2 });
+  const spread = P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1;
+  const expected = baseline.kp * spread;
+
+  const overall = versus(P.kp, expected, { prior: 0.1, gain: 1.2 });
+  const late = P.lateKp == null ? null : versus(P.lateKp, expected, { prior: 0.1, gain: 1.2 });
   const score = weightedMean([
     { score: overall, weight: 0.5 },
     { score: late, weight: 0.5 }
   ]);
   const detail =
-    `${Math.round(P.kp * 100)}% KP` + (P.lateKp == null ? '' : ` · ${Math.round(P.lateKp * 100)}% post-15`);
+    `${Math.round(P.kp * 100)}% KP` +
+    (P.lateKp == null ? '' : ` · ${Math.round(P.lateKp * 100)}% post-15`) +
+    (Math.abs(spread - 1) > 0.08 ? ` · bar ${Math.round(expected * 100)}%` : '');
   return { score, detail };
 }
 
@@ -444,6 +462,20 @@ function scoreSupport(P, ctx) {
   const ccScore = opp ? versus(P.ccScore, opp.ccScore, { prior: 15, gain: 1.35 }) : null;
   const healScore = opp ? versus(P.healShieldPerMin, opp.healShieldPerMin, { prior: 120, gain: 1.35 }) : null;
   const saveScore = opp ? versus(P.savesPerGame, opp.savesPerGame, { prior: 1.2, gain: 1.3 }) : null;
+  // Leaving a won bot lane to make things happen elsewhere is the support's job,
+  // not a dereliction of it. Takedowns away from their own lane during laning
+  // phase are counted alongside raw participation, against the enemy support who
+  // had the same option.
+  const participation = participationComponent(P, ctx, b);
+  const roamScore = opp ? versus(P.roamTakedowns, opp.roamTakedowns, { prior: 1.5, gain: 1.35 }) : null;
+  const presence = {
+    score: weightedMean([
+      { score: participation.score, weight: 0.7 },
+      { score: roamScore, weight: 0.3 }
+    ]),
+    detail: participation.detail + (P.roamTakedowns > 0 ? ` · ${P.roamTakedowns} roam TD` : '')
+  };
+
   const specialised = Math.max(ccScore ?? 0, healScore ?? 0);
   const utility = {
     score:
@@ -457,7 +489,7 @@ function scoreSupport(P, ctx) {
     components: [
       component('vision', 'Vision', 28, ...pick(visionComponent(P, ctx, b))),
       component('utility', 'Utility', 22, utility.score, utility.detail),
-      component('presence', 'Participation', 18, ...pick(participationComponent(P, ctx, b))),
+      component('presence', 'Participation', 18, ...pick(presence)),
       component('deaths', 'Deaths', 12, ...pick(deathComponent(P, ctx, b))),
       component('lane', 'Bot lane', laneWeight(12, ctx), lane?.score, lane?.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.3 })))
