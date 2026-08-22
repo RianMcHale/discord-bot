@@ -33,7 +33,10 @@ export function computeRollingStats(windowSize, { minGames = 1 } = {}) {
         displayName: player.riotGameName,
         gamesPlayed: scores.length,
         rollingAverage,
-        recentScores: scores
+        recentScores: scores,
+        // What they've been repeatedly bad at over this window — the reason
+        // behind the number, which is what a bench call has to justify.
+        byComponent: aggregateComponents(games, player.discordId)
       };
     })
     // Players with zero scored games are excluded entirely — there is nothing to
@@ -49,6 +52,51 @@ export function computeRollingStats(windowSize, { minGames = 1 } = {}) {
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round1 = (v) => (v === null ? null : Math.round(v * 10) / 10);
+
+// Below this a component is a real weakness rather than a slightly-off game.
+// 50 is "did your job", so 45 is a clear miss without being alarmist.
+const WEAK_SCORE = 45;
+// A component needs this many games before "consistently weak" means anything.
+const MIN_COMPONENT_GAMES = 3;
+
+/**
+ * Averages each rubric component across a set of games, worst first.
+ *
+ * Every scored game already stores all six component scores per player, and
+ * until now nothing read them except the single-match card. Aggregated, they
+ * answer the question a bench call actually raises: not "who is worst" but
+ * "what is this person doing wrong, repeatedly".
+ *
+ * Components are keyed rather than labelled because the label changes by role —
+ * an ADC's death component is called Positioning — but the key and the 50 anchor
+ * are the same, so the average holds across a player who has filled two roles.
+ */
+export function aggregateComponents(games, discordId) {
+  const acc = new Map();
+
+  for (const game of games) {
+    for (const c of game.scores[discordId]?.components ?? []) {
+      if (!Number.isFinite(c.score)) continue; // dropped for missing timeline data
+      if (!acc.has(c.key)) acc.set(c.key, { key: c.key, labels: new Map(), scores: [] });
+      const entry = acc.get(c.key);
+      entry.scores.push(c.score);
+      entry.labels.set(c.label, (entry.labels.get(c.label) ?? 0) + 1);
+    }
+  }
+
+  return [...acc.values()]
+    .map((e) => ({
+      key: e.key,
+      // The label this player saw most often, so a mostly-ADC player reads
+      // "Positioning" rather than "Deaths".
+      label: [...e.labels.entries()].sort((a, b) => b[1] - a[1])[0][0],
+      games: e.scores.length,
+      average: round1(mean(e.scores)),
+      weakGames: e.scores.filter((s) => s < WEAK_SCORE).length,
+      reliable: e.scores.length >= MIN_COMPONENT_GAMES
+    }))
+    .sort((a, b) => a.average - b.average); // worst first: that's what's being asked
+}
 
 // How many games of "prior belief" a rating is anchored against. A raw average
 // isn't a leaderboard — it rewards whoever has played least, and one good game
@@ -91,6 +139,7 @@ export function computeCareerStats(formWindow = 5) {
         riotName: `${p.riotGameName}#${p.riotTagLine}`,
         displayName: p.riotGameName,
         scores: [],
+        games: [],
         byRole: new Map(),
         byChampion: new Map(),
         wins: 0,
@@ -118,6 +167,7 @@ export function computeCareerStats(formWindow = 5) {
     for (const { id, score, stored } of entries) {
       const a = acc.get(id);
       a.scores.push({ score, playedAt: game.playedAt, matchId: game.matchId, role: stored.role, win: stored.win });
+      a.games.push(game);
       if (stored.win) a.wins += 1;
       else a.losses += 1;
       if (lowest && id === lowest.id) a.benched += 1;
@@ -174,6 +224,9 @@ export function computeCareerStats(formWindow = 5) {
         lastPlayed: a.lastPlayed,
         // Most recent first, for sparklines and recent-form displays.
         history: [...a.scores].reverse(),
+        // Averaged across every game, so a persistent weakness separates itself
+        // from one bad night.
+        byComponent: aggregateComponents(a.games, a.discordId),
         byRole: [...a.byRole.entries()]
           .map(([role, scores]) => ({
             role,

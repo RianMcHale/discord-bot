@@ -179,7 +179,9 @@ bench call.
   stored with every game, so this works on any game in your history however old.
 - `/profile player:<@user>` — one player's full record: overall average and squad rank,
   a bar per role, form trend, a sparkline of recent games, best and worst single game,
-  and most-played champions. `/alltime` is the squad view; this is the individual one.
+  and most-played champions. Also a **per-component breakdown** averaged across every
+  game — per-role tells you which role suits them, this tells you what they're doing
+  wrong inside it. `/alltime` is the squad view; this is the individual one.
 - `/leaderboard` — recent form: each player's average over **their own** last
   `ROLLING_WINDOW` games (default 10), best to worst. Someone who sat out three of the
   squad's last ten is still measured across ten of their own, so nobody is judged on a
@@ -192,9 +194,12 @@ bench call.
   are role-anchored, those role averages are directly comparable — so the embed
   also names the squad's **best player in each role**, which is the number a
   rotation actually needs when deciding who plays what.
-- `/worst` — who the data says should be benched right now. Only considers players who
-  have hit the minimum, so a single bad game can't get someone benched, and it says when
-  the call is too close between the bottom two to be a real verdict.
+- `/worst` — who the data says should be benched right now, **and why**. Alongside the
+  number it averages each rubric component across the window, so the call comes with the
+  reason attached (`Vision 39 · under 45 in 7 of 7 games — that's the pattern, not one
+  bad night`) plus what they're doing well. Only considers players who have hit the
+  minimum, so a single bad game can't get someone benched, and it says when the call is
+  too close between the bottom two to be a real verdict.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 - `/resetgames confirm:RESET` — wipe all scored game history. Keeps registered players.
   Irreversible, so it's **restricted to the bot owner**; anyone else gets a private

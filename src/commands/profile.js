@@ -80,6 +80,28 @@ export async function execute(interaction) {
 
   embed.addFields({ name: '📈 Form', value: formLine(s), inline: false });
 
+  // Per-role says which role suits them; this says what they're doing wrong
+  // inside it. Every game already stored these — they just had nowhere to go.
+  const components = s.byComponent.filter((c) => c.reliable);
+  if (components.length > 0) {
+    const worstThree = components.slice(0, 3);
+    const bestTwo = [...components].reverse().slice(0, 2);
+    const mark = (c) => (c.average < 45 ? '🔴' : c.average >= 55 ? '🟢' : '▫️');
+    embed.addFields({
+      name: '🧩 By component',
+      value:
+        [...worstThree, ...bestTwo.filter((c) => !worstThree.includes(c))]
+          .sort((a, b) => a.average - b.average)
+          .map(
+            (c) =>
+              `${mark(c)} **${c.label}** ${fmt(c.average)}` +
+              (c.weakGames > 0 ? ` · under 45 in ${c.weakGames}/${c.games}` : ` · ${c.games} games`)
+          )
+          .join('\n') + `\n-# 50 = did your job. Averaged across every game, whatever role they played.`,
+      inline: false
+    });
+  }
+
   const recent = s.history.slice(0, 12).reverse(); // oldest to newest, reads left to right
   if (recent.length >= 3) {
     embed.addFields({

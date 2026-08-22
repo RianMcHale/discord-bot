@@ -39,6 +39,17 @@ export async function execute(interaction) {
   const runnerUp = ranked[1] ?? null;
   const margin = runnerUp ? Math.round((runnerUp.rollingAverage - worst.rollingAverage) * 10) / 10 : null;
 
+  // A bench call should be arguable. The component averages say what they've
+  // actually been doing badly, rather than leaving the number to be argued with.
+  const scored = worst.byComponent.filter((c) => c.reliable);
+  const weakest = scored.filter((c) => c.average < 47).slice(0, 3);
+  const strongest = [...scored].reverse().filter((c) => c.average >= 50).slice(0, 2);
+  const fmtComponent = (c) => `${c.label} ${c.average}`;
+
+  // The single clearest pattern: a weakness that shows up nearly every game is a
+  // different argument from an average dragged down by one disaster.
+  const persistent = weakest.find((c) => c.weakGames >= Math.ceil(c.games * 0.6) && c.weakGames >= 3);
+
   const embed = new EmbedBuilder()
     .setTitle('🪑 Bench recommendation')
     .setColor(0xe67e22)
@@ -56,7 +67,29 @@ export async function execute(interaction) {
       name: 'Recent scores',
       value: worst.recentScores.map((s) => s.toFixed(1)).join(' · '),
       inline: false
-    })
+    });
+
+  if (weakest.length > 0) {
+    embed.addFields({
+      name: '🔻 Consistently weak',
+      value:
+        weakest.map(fmtComponent).join(' · ') +
+        (strongest.length ? `\n-# Fine at: ${strongest.map(fmtComponent).join(' · ')}` : '') +
+        (persistent
+          ? `\n-# ${persistent.label} has been under 45 in ${persistent.weakGames} of ${persistent.games} games — that's the pattern, not one bad night.`
+          : ''),
+      inline: false
+    });
+  } else if (scored.length > 0) {
+    // Nothing is actually broken; they're just the lowest of a close group.
+    embed.addFields({
+      name: '🔻 Consistently weak',
+      value: `-# Nothing stands out — no component averages below 47 over ${worst.gamesPlayed} games.`,
+      inline: false
+    });
+  }
+
+  embed
     .setFooter({ text: `Ranked over each player's own last ${config.rollingWindow} games · minimum ${minGames}` });
 
   if (provisional.length > 0) {
