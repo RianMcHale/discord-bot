@@ -126,8 +126,12 @@ function shrink(average, games, prior, priorGames) {
  * average are directly comparable and will often disagree.
  *
  * @param {number} formWindow - how many recent games count as "current form"
+ * @param {object} opts
+ * @param {number} opts.minGames - games needed to appear on the standings. Below
+ *   it a player is returned in `provisional` instead: still visible, with their
+ *   progress toward qualifying, but not given a position on the board.
  */
-export function computeCareerStats(formWindow = 5) {
+export function computeCareerStats(formWindow = 5, { minGames = 1 } = {}) {
   const games = db.allGames(); // ascending by playedAt
   const players = db.allPlayers();
 
@@ -250,7 +254,11 @@ export function computeCareerStats(formWindow = 5) {
     .sort((a, b) => b.rating - a.rating);
 
   return {
-    stats,
+    // Only players with a real record hold a position on the board. The rest are
+    // returned separately rather than hidden, so "where am I" has an answer.
+    stats: stats.filter((s) => s.gamesPlayed >= minGames),
+    provisional: stats.filter((s) => s.gamesPlayed < minGames).sort((a, b) => b.gamesPlayed - a.gamesPlayed),
+    minGames,
     squadMean: round1(squadMean),
     totalGames: games.length,
     legacyGames,

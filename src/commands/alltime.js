@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { computeCareerStats } from '../rollingStats.js';
+import { config } from '../config.js';
 
 const ROLE_EMOJI = {
   TOP: '🛡️',
@@ -50,9 +51,10 @@ export const data = new SlashCommandBuilder()
   .setDescription('Overall leaderboard across every game the bot has ever scored.');
 
 export async function execute(interaction) {
-  const { stats, squadMean, totalGames, legacyGames, firstPlayed, lastPlayed } = computeCareerStats();
+  const { stats, provisional, minGames, squadMean, totalGames, legacyGames, firstPlayed, lastPlayed } =
+    computeCareerStats(5, { minGames: config.alltimeMinGames });
 
-  if (stats.length === 0) {
+  if (stats.length === 0 && provisional.length === 0) {
     await interaction.reply('No scored games yet — run `/fetchgame` after your next match.');
     return;
   }
@@ -97,7 +99,11 @@ export async function execute(interaction) {
   const embed = new EmbedBuilder()
     .setTitle('🏆 All-time standings')
     .setColor(0xf1c40f)
-    .setDescription(header + lines.slice(0, shown).join('\n\n') + trimmed)
+    .setDescription(
+      stats.length > 0
+        ? header + lines.slice(0, shown).join('\n\n') + trimmed
+        : `${header}Nobody has ${minGames} scored games yet, so there's no board to rank.`
+    )
     .setFooter({
       text: '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
     });
@@ -123,6 +129,18 @@ export async function execute(interaction) {
   }
   if (bestByRole.length > 0) {
     embed.addFields({ name: '🎯 Best in role', value: bestByRole.join('\n'), inline: false });
+  }
+
+  // Listed rather than hidden: "where is my name" is a worse question than
+  // "how many more games until I'm on the board".
+  if (provisional.length > 0) {
+    embed.addFields({
+      name: `⏳ Not ranked yet (${minGames} games needed)`,
+      value: provisional
+        .map((s) => `-# <@${s.discordId}> — ${s.gamesPlayed}/${minGames} · currently ${fmt(s.rating)}`)
+        .join('\n'),
+      inline: false
+    });
   }
 
   if (legacyGames > 0) {

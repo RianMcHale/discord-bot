@@ -193,7 +193,9 @@ bench call.
   and a **per-role average** (`⚡ Mid 67.0 ×6 · 🌲 Jungle 46.8 ×4`). Because scores
   are role-anchored, those role averages are directly comparable — so the embed
   also names the squad's **best player in each role**, which is the number a
-  rotation actually needs when deciding who plays what.
+  rotation actually needs when deciding who plays what. Needs `ALLTIME_MIN_GAMES`
+  games (default 3) to hold a position; below that a player is listed separately
+  with their progress toward it, and isn't eligible for "best in role" either.
 - `/worst` — who the data says should be benched right now, **and why**. Alongside the
   number it averages each rubric component across the window, so the call comes with the
   reason attached (`Vision 39 · under 45 in 7 of 7 games — that's the pattern, not one

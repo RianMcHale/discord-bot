@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { db } from '../storage.js';
 import { computeCareerStats } from '../rollingStats.js';
+import { config } from '../config.js';
 import { roleInfo, scoreBar, ROLE_ORDER } from '../embeds.js';
 
 const fmt = (v) => (Number.isFinite(v) ? v.toFixed(1) : '—');
@@ -38,22 +39,25 @@ export async function execute(interaction) {
     return;
   }
 
-  const { stats } = computeCareerStats();
-  const s = stats.find((x) => x.discordId === targetUser.id);
+  // Same minimum as /alltime, so a rank shown here matches the board there.
+  const { stats, provisional, minGames } = computeCareerStats(5, { minGames: config.alltimeMinGames });
+  const ranked = stats.find((x) => x.discordId === targetUser.id);
+  const s = ranked ?? provisional.find((x) => x.discordId === targetUser.id);
   if (!s) {
     await interaction.reply(`No scored games yet for <@${targetUser.id}>.`);
     return;
   }
 
-  const rank = stats.findIndex((x) => x.discordId === targetUser.id) + 1;
+  const standing = ranked
+    ? `**#${stats.findIndex((x) => x.discordId === targetUser.id) + 1}** of ${stats.length}`
+    : `not ranked yet (${s.gamesPlayed}/${minGames} games)`;
 
   const embed = new EmbedBuilder()
     .setTitle(`${player.riotGameName}#${player.riotTagLine}`)
     .setColor(0x5865f2)
     .setThumbnail(targetUser.displayAvatarURL?.() ?? null)
     .setDescription(
-      `<@${targetUser.id}> — \`${scoreBar(s.rating)}\` **${fmt(s.rating)}** overall · ` +
-        `**#${rank}** of ${stats.length}\n` +
+      `<@${targetUser.id}> — \`${scoreBar(s.rating)}\` **${fmt(s.rating)}** overall · ${standing}\n` +
         `-# ${s.gamesPlayed} games · ${s.wins}W ${s.losses}L (${s.winRate}%) · benched ${s.benched}×`
     )
     .setFooter({ text: '50 = did your job for your role · /alltime for the squad standings' });

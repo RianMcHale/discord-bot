@@ -23,6 +23,10 @@ export const config = {
   // Games needed before someone can be ranked — or benched — on recent form.
   // A bench call off one or two games is noise, not evidence.
   leaderboardMinGames: parseInt(process.env.LEADERBOARD_MIN_GAMES || '5', 10),
+  // Games needed to appear on the all-time standings. Lower than the recent-form
+  // minimum because it's a career record, not a bench call — but a leaderboard
+  // still shouldn't rank someone on a single game.
+  alltimeMinGames: parseInt(process.env.ALLTIME_MIN_GAMES || '3', 10),
 
   // Discord user ids allowed to run destructive commands (/resetgames).
   // Defaults to the bot owner so it works without extra Railway config; override

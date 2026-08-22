@@ -193,6 +193,32 @@ test('ranking uses the rating, not the raw average', () => {
   assert.deepEqual(ratings, [...ratings].sort((a, b) => b - a), 'sorted by rating, best first');
 });
 
+test('the standings require a minimum record, without hiding anyone', () => {
+  db.upsertPlayer({ discordId: 'rookie', riotGameName: 'Rookie', riotTagLine: 'EUW', puuid: 'p9' });
+  db.saveGame('R1', gameRecord({ matchId: 'R1', playedAt: 5e6, scores: { rookie: playerScore({ composite: 88, role: 'MIDDLE' }) } }));
+  db.saveGame('R2', gameRecord({ matchId: 'R2', playedAt: 5e6 + DAY, scores: { rookie: playerScore({ composite: 84, role: 'MIDDLE' }) } }));
+
+  const { stats, provisional, minGames } = computeCareerStats(5, { minGames: 3 });
+
+  assert.equal(minGames, 3);
+  assert.ok(!stats.some((s) => s.discordId === 'rookie'), 'two games does not earn a position');
+  const listed = provisional.find((s) => s.discordId === 'rookie');
+  assert.ok(listed, 'but they are still returned, not hidden');
+  assert.equal(listed.gamesPlayed, 2);
+  assert.ok(Number.isFinite(listed.rating), 'with a number to show');
+
+  // And the established players are unaffected.
+  assert.ok(stats.some((s) => s.discordId === 'steady'));
+
+  db.removeGames(['R1', 'R2']);
+});
+
+test('a minimum of 1 keeps everyone on the board', () => {
+  const { stats, provisional } = computeCareerStats(5, { minGames: 1 });
+  assert.equal(provisional.length, 0);
+  assert.ok(stats.length >= 2);
+});
+
 test('games stored before the rewrite are counted and flagged', () => {
   db.saveGame('LEGACY', {
     matchId: 'LEGACY',
