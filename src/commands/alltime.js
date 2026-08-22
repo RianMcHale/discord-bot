@@ -46,13 +46,39 @@ function formTag(s) {
   return '▬ steady';
 }
 
+// Rolling windows rather than calendar ones: "this month" is empty on the 1st
+// and misleading on the 2nd, whereas "the last 30 days" always covers a real
+// stretch of play whenever the command is run.
+const PERIODS = {
+  week: { label: 'Last 7 days', days: 7, title: '📅 Last 7 days' },
+  month: { label: 'Last 30 days', days: 30, title: '📅 Last 30 days' }
+};
+
 export const data = new SlashCommandBuilder()
   .setName('alltime')
-  .setDescription('Overall leaderboard across every game the bot has ever scored.');
+  .setDescription('Overall leaderboard across every game the bot has ever scored.')
+  .addStringOption((opt) =>
+    opt
+      .setName('period')
+      .setDescription('Limit to a recent stretch instead of the full record')
+      .addChoices(
+        { name: 'Last 7 days', value: 'week' },
+        { name: 'Last 30 days', value: 'month' }
+      )
+      .setRequired(false)
+  );
 
 export async function execute(interaction) {
+  const period = PERIODS[interaction.options.getString('period')] ?? null;
+  const since = period ? Date.now() - period.days * 86400000 : null;
+
   const { stats, provisional, minGames, squadMean, totalGames, legacyGames, firstPlayed, lastPlayed } =
-    computeCareerStats(5, { minGames: config.alltimeMinGames });
+    computeCareerStats(5, { minGames: config.alltimeMinGames, since });
+
+  if (period && totalGames === 0) {
+    await interaction.reply(`No games scored in the ${period.label.toLowerCase()}.`);
+    return;
+  }
 
   if (stats.length === 0 && provisional.length === 0) {
     await interaction.reply('No scored games yet — run `/fetchgame` after your next match.');
@@ -88,8 +114,11 @@ export async function execute(interaction) {
   // which at ~190 per player means a roster of about 21. Trim to what fits rather
   // than failing to send anything at all.
   const DESCRIPTION_LIMIT = 4096;
+  const scope = period
+    ? `**${totalGames}** game${totalGames === 1 ? '' : 's'} in the ${period.label.toLowerCase()}`
+    : `all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}`;
   const header =
-    `Across all **${totalGames}** scored game${totalGames === 1 ? '' : 's'}${span}\n` +
+    `Across ${scope}${span}\n` +
     `-# Weighted by games played — a thin record sits near the squad average (${fmt(squadMean)}) until it's earned.\n\n`;
   let shown = lines.length;
   const fits = () => header.length + lines.slice(0, shown).join('\n\n').length + 80 <= DESCRIPTION_LIMIT;
@@ -97,15 +126,17 @@ export async function execute(interaction) {
   const trimmed = shown < lines.length ? `\n\n-# …and ${lines.length - shown} more — use \`/profile\`.` : '';
 
   const embed = new EmbedBuilder()
-    .setTitle('🏆 All-time standings')
-    .setColor(0xf1c40f)
+    .setTitle(period ? period.title : '🏆 All-time standings')
+    .setColor(period ? 0x9b59b6 : 0xf1c40f)
     .setDescription(
       stats.length > 0
         ? header + lines.slice(0, shown).join('\n\n') + trimmed
-        : `${header}Nobody has ${minGames} scored games yet, so there's no board to rank.`
+        : `${header}Nobody has ${minGames} games${period ? ` in the ${period.label.toLowerCase()}` : ' yet'}, so there's no board to rank.`
     )
     .setFooter({
-      text: '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
+      text: period
+        ? `50 = did your job for your role · /alltime with no period for the full record`
+        : '50 = did your job for your role · /leaderboard for recent form · /profile for one player'
     });
 
   // Per-role averages are directly comparable to each other, so the squad's best

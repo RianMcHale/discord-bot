@@ -130,9 +130,11 @@ function shrink(average, games, prior, priorGames) {
  * @param {number} opts.minGames - games needed to appear on the standings. Below
  *   it a player is returned in `provisional` instead: still visible, with their
  *   progress toward qualifying, but not given a position on the board.
+ * @param {number|null} opts.since - epoch ms; only games played at or after this
+ *   are counted. Null means everything, which is the honest all-time record.
  */
-export function computeCareerStats(formWindow = 5, { minGames = 1 } = {}) {
-  const games = db.allGames(); // ascending by playedAt
+export function computeCareerStats(formWindow = 5, { minGames = 1, since = null } = {}) {
+  const games = db.allGames().filter((g) => since === null || g.playedAt >= since); // ascending by playedAt
   const players = db.allPlayers();
 
   const acc = new Map(

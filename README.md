@@ -196,6 +196,12 @@ bench call.
   rotation actually needs when deciding who plays what. Needs `ALLTIME_MIN_GAMES`
   games (default 3) to hold a position; below that a player is listed separately
   with their progress toward it, and isn't eligible for "best in role" either.
+- `/alltime period:week` / `period:month` — the same board over the **last 7 or 30
+  days** instead of the full record. Rolling windows, not calendar ones, so the board
+  is never empty just because it's the 1st. Every number is recomputed inside the
+  window — including the squad average that ratings are weighted against — so it
+  answers "how are we playing lately", not "here's a slice of the all-time table".
+  With no `period`, `/alltime` remains the genuine all-time record.
 - `/worst` — who the data says should be benched right now, **and why**. Alongside the
   number it averages each rubric component across the window, so the call comes with the
   reason attached (`Vision 39 · under 45 in 7 of 7 games — that's the pattern, not one
