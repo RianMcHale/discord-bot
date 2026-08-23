@@ -72,12 +72,19 @@ support who bought support items.
   prelude to a 40-minute one, so its share of the grade shrinks as the game runs long
   (reference point 27 minutes, clamped to 0.5×–1.2×). Everything else — damage,
   teamfights, objectives — takes up the slack automatically.
-- **A comeback is credited.** Gold earned *after* laning is compared against the same
-  counterpart. Losing lane and then out-earning them for twenty minutes lifts the lane
-  score by up to 28 points, in proportion to how much of the deficit was actually
-  erased. It can never turn a lost lane into a won one. The reverse also applies:
-  building a lead and then getting out-earned costs up to 10 — less than a comeback
-  earns, because coming back takes play while losing a lead often takes one bad fight.
+- **A comeback is credited, in every role.** Gold earned *after* laning is compared
+  against the same counterpart. Losing your matchup and then out-earning them for twenty
+  minutes lifts the score by up to 28 points, in proportion to how much of the deficit
+  was actually erased. It can never turn a lost lane into a won one. The reverse also
+  applies: building a lead and then getting out-earned costs up to 10 — less than a
+  comeback earns, because coming back takes play while losing a lead often takes one bad
+  fight.
+
+  Each role is measured on whatever its deficit was measured on. A solo laner uses their
+  own gold; **bot lane uses the pair's**, so a support isn't credited for their ADC's
+  recovery; and the **jungler uses all three lanes combined** — their lanes being 3k down
+  at 14 and level by the end is the same achievement a scaling carry gets credit for, it
+  just shows up across the whole map instead of in one lane.
 
 **Roaming off a won lane is credited, not punished.** A takedown away from your own
 lane during laning phase counts as a roam, and for supports it's part of the

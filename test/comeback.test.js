@@ -86,6 +86,56 @@ test('the swing is reported in the stored context', () => {
   assert.equal(scored.p4.context.goldDiff14, -900);
 });
 
+// The comeback lived inside laneComponent, which the jungle rubric never calls —
+// so four of five roles got it and the jungler silently got nothing.
+const ROLE_OF = { 1: 'TOP', 2: 'JUNGLE', 3: 'MIDDLE', 4: 'BOTTOM', 5: 'UTILITY' };
+const LANE_KEY = (id) => (id === 2 ? 'mapstate' : 'lane');
+
+/** Puts all of team 100 behind at 14, optionally recovering afterwards. */
+function wholeTeam({ recover }) {
+  const s = campedTopScenario({ durationMinutes: 32 });
+  for (const id of [1, 2, 3, 4, 5]) {
+    const opp = id + 5;
+    s.timeline.info.frames.forEach((f, m) => {
+      if (m > 14) return;
+      f.participantFrames[String(id)].totalGold = Math.round((5000 * m) / 14);
+      f.participantFrames[String(opp)].totalGold = Math.round((6200 * m) / 14);
+    });
+    s.match.info.participants.find((p) => p.participantId === id).goldEarned = 17000 + (recover ? 2500 : 0);
+    s.match.info.participants.find((p) => p.participantId === opp).goldEarned = 18200;
+  }
+  return scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] });
+}
+
+test('every role is credited for a comeback, jungle included', () => {
+  const flat = wholeTeam({ recover: false });
+  const back = wholeTeam({ recover: true });
+
+  for (const id of [1, 2, 3, 4, 5]) {
+    const key = LANE_KEY(id);
+    const before = flat[`p${id}`].components.find((c) => c.key === key).score;
+    const after = back[`p${id}`].components.find((c) => c.key === key).score;
+    assert.ok(after > before + 10, `${ROLE_OF[id]} got no comeback credit (${before} -> ${after})`);
+  }
+});
+
+test('the jungler’s comeback is measured across their lanes, not their own gold', () => {
+  const back = wholeTeam({ recover: true });
+  const mapstate = back.p2.components.find((c) => c.key === 'mapstate');
+  // Five players recovering 2500g each is a 10k team swing, not 2500.
+  assert.match(mapstate.detail, /lanes -\d+g @14/);
+  assert.match(mapstate.detail, /post-lane \(\+10000g\)/, 'team-scale, summed across the lanes');
+});
+
+test('bot lane recovery is measured on the pair, like its deficit is', () => {
+  // The deficit uses the pair's combined economy, so the recovery has to as
+  // well — otherwise a support is credited for their ADC's comeback.
+  const back = wholeTeam({ recover: true });
+  const support = back.p5.components.find((c) => c.key === 'lane');
+  assert.match(support.detail, /-2400g @14/, 'pair deficit');
+  assert.match(support.detail, /post-lane \(\+5000g\)/, 'pair recovery, not one player’s 2500');
+});
+
 test('no timeline means no comeback adjustment rather than a crash', () => {
   const s = campedTopScenario();
   const scored = scoreMatch(s.match, { timeline: null, trackedPuuids: [] });

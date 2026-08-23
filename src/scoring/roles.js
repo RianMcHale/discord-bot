@@ -62,6 +62,35 @@ export function laneWeight(base, ctx) {
   return Math.round(base * clamp(LANE_REFERENCE_MINUTES / ctx.minutes, 0.5, 1.2));
 }
 
+/**
+ * Credit for erasing a deficit after laning, or the cost of giving a lead away.
+ *
+ * A snapshot at 14 minutes cannot tell "went even and stayed there" apart from
+ * "was a thousand down and out-earned them for the next twenty minutes". Every
+ * role gets this: a jungler whose lanes were behind at 14 and level by the end
+ * did the same job a scaling carry did, just measured on the whole map.
+ *
+ * `floor` is the smallest deficit worth scaling against, so a 200g gap doesn't
+ * turn a modest recovery into a full 28 points. It scales with the metric —
+ * individual gold uses a few hundred, whole-team gold a few thousand.
+ */
+function comebackAdjustment(diff, swing, { floor = 800 } = {}) {
+  if (!Number.isFinite(diff) || !Number.isFinite(swing)) return 0;
+  if (diff < -floor * 0.375 && swing > 0) {
+    return clamp(swing / Math.max(-diff, floor), 0, 1) * COMEBACK_MAX;
+  }
+  if (diff > floor * 0.375 && swing < 0) {
+    return -clamp(-swing / Math.max(diff, floor), 0, 1) * THROWN_LEAD_MAX;
+  }
+  return 0;
+}
+
+/** Renders the post-lane swing for a component detail line. */
+function comebackDetail(comeback, swing) {
+  if (Math.abs(comeback) < 1) return '';
+  return ` · ${comeback > 0 ? '+' : ''}${Math.round(comeback)} post-lane (${swing >= 0 ? '+' : ''}${Math.round(swing)}g)`;
+}
+
 const opponentOf = (P, ctx) => (P.counterpartPuuid ? ctx.byPuuid.get(P.counterpartPuuid) : null) || null;
 
 const scaleToBench = (value, P) => value * clamp((P.benchMinute ?? 14) / 14, 0.4, 1);
@@ -101,19 +130,11 @@ function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'indiv
   ]);
   if (goldScore === null && xpScore === null) return null;
 
-  // What happened after laning, against the same counterpart. Losing lane and
-  // then out-earning them for twenty minutes is a different game from losing
-  // lane and staying lost, and the 14-minute snapshot cannot tell them apart.
-  const swing = P.postLaneSwing;
-  let comeback = 0;
-  if (Number.isFinite(swing) && Number.isFinite(goldDiff)) {
-    if (goldDiff < -300 && swing > 0) {
-      // Credit is proportional to how much of the deficit was actually erased.
-      comeback = clamp(swing / Math.max(-goldDiff, 800), 0, 1) * COMEBACK_MAX;
-    } else if (goldDiff > 300 && swing < 0) {
-      comeback = -clamp(-swing / Math.max(goldDiff, 800), 0, 1) * THROWN_LEAD_MAX;
-    }
-  }
+  // What happened after laning, measured the same way the deficit was. A bot
+  // lane graded on the pair's economy has to have its recovery measured on the
+  // pair too, or the support is credited for their ADC's comeback and vice versa.
+  const swing = source === 'pair' ? P.pairPostLaneSwing : P.postLaneSwing;
+  const comeback = comebackAdjustment(goldDiff, swing, { floor: source === 'pair' ? 1200 : 800 });
 
   const score = clamp(laned + comeback, 0, 100);
 
@@ -121,9 +142,7 @@ function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'indiv
     Number.isFinite(goldDiff) &&
     `${goldDiff >= 0 ? '+' : ''}${Math.round(goldDiff)}g @${P.benchMinute ?? 14}` +
       (net !== 0 ? ` (bar ${goldPivot >= 0 ? '+' : ''}${Math.round(goldPivot)}g)` : '') +
-      (Math.abs(comeback) >= 1
-        ? ` · ${comeback > 0 ? '+' : ''}${Math.round(comeback)} post-lane (${swing >= 0 ? '+' : ''}${Math.round(swing)}g)`
-        : '');
+      comebackDetail(comeback, swing);
 
   return { score, detail: detail || null, comeback };
 }
@@ -326,12 +345,21 @@ function scoreJungle(P, ctx) {
   const b = BASELINE.JUNGLE;
   const opp = opponentOf(P, ctx);
 
+  // The jungler's version of a comeback. Their lanes being 3k down at 14 and
+  // level by the end is the same achievement a scaling carry gets credit for —
+  // it just shows up across the whole map instead of one lane. Team-scale gold,
+  // so the floor is a few thousand rather than a few hundred.
+  const mapComeback = comebackAdjustment(P.teamLaneGold14, P.teamPostLaneSwing, { floor: 2600 });
   const mapState = {
-    score: fromDiff(P.teamLaneGold14, scaleToBench(3200, P)),
+    score: (() => {
+      const base = fromDiff(P.teamLaneGold14, scaleToBench(3200, P));
+      return base === null ? null : clamp(base + mapComeback, 0, 100);
+    })(),
     detail:
       P.teamLaneGold14 == null
         ? null
-        : `lanes ${P.teamLaneGold14 >= 0 ? '+' : ''}${Math.round(P.teamLaneGold14)}g @${P.benchMinute ?? 14}`
+        : `lanes ${P.teamLaneGold14 >= 0 ? '+' : ''}${Math.round(P.teamLaneGold14)}g @${P.benchMinute ?? 14}` +
+          comebackDetail(mapComeback, P.teamPostLaneSwing)
   };
 
   // Gank conversion: takedowns your commitments produced, versus the enemy

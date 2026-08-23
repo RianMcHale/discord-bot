@@ -251,6 +251,8 @@ export function buildContext(match, timeline = null) {
       gankTakedowns: 0,
       roamTakedowns: 0,
       postLaneSwing: null,
+      pairPostLaneSwing: null,
+      teamPostLaneSwing: null,
       teamAvgKp: null,
       laneVisitsGiven: 0, // jungle: lane visits this player made
       weightedDeathsPerMin: null,
@@ -347,20 +349,29 @@ export function buildContext(match, timeline = null) {
     const pair = players.filter((p) => p.teamId === teamId && (p.role === 'BOTTOM' || p.role === 'UTILITY'));
     const other = players.filter((p) => p.teamId !== teamId && (p.role === 'BOTTOM' || p.role === 'UTILITY'));
     if (pair.length === 2 && other.length === 2) {
-      const diff = pair.reduce((s, p) => s + (p.gold14 || 0), 0) - other.reduce((s, p) => s + (p.gold14 || 0), 0);
-      pair.forEach((p) => (p.pairGoldDiff14 = diff));
+      const at14 = (side) => side.reduce((s, p) => s + (p.gold14 || 0), 0);
+      const post = (side) => side.reduce((s, p) => s + (p.raw.goldEarned - (p.gold14 || 0)), 0);
+      pair.forEach((p) => {
+        p.pairGoldDiff14 = at14(pair) - at14(other);
+        // Measured on the pair, like the deficit is — otherwise a support gets
+        // credited for their ADC's recovery, and the ADC for the support's.
+        p.pairPostLaneSwing = post(pair) - post(other);
+      });
     }
   }
 
   // Team lane economy at 14 — the jungler's report card. Junglers are excluded:
   // this measures the state of the map the jungler was responsible for shaping.
   for (const teamId of [100, 200]) {
-    teams[teamId].laneGold14 = players
-      .filter((p) => p.teamId === teamId && p.role !== 'JUNGLE')
-      .reduce((s, p) => s + (p.gold14 || 0), 0);
+    const lanes = players.filter((p) => p.teamId === teamId && p.role !== 'JUNGLE');
+    teams[teamId].laneGold14 = lanes.reduce((s, p) => s + (p.gold14 || 0), 0);
+    teams[teamId].laneGoldPost = lanes.reduce((s, p) => s + (p.raw.goldEarned - (p.gold14 || 0)), 0);
   }
   for (const p of players) {
-    p.teamLaneGold14 = teams[p.teamId].laneGold14 - teams[p.teamId === 100 ? 200 : 100].laneGold14;
+    const them = teams[p.teamId === 100 ? 200 : 100];
+    p.teamLaneGold14 = teams[p.teamId].laneGold14 - them.laneGold14;
+    // How the map the jungler was responsible for moved after laning ended.
+    p.teamPostLaneSwing = teams[p.teamId].laneGoldPost - them.laneGoldPost;
   }
 
   const junglers = {
