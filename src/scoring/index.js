@@ -38,8 +38,14 @@ function buildNotes(P, ctx) {
     if (P.alliesUnanswered != null && P.alliesUnanswered >= 2.5) {
       notes.push(`left lanes ×${P.alliesUnanswered.toFixed(1)} unanswered`);
     }
-    if (P.teamLaneGold14 != null && P.teamLaneGold14 <= -1500) {
-      notes.push(`lanes ${Math.abs(Math.round(P.teamLaneGold14 / 100)) / 10}k down @${P.benchMinute}`);
+    // The weighted figure, not the flat one: it is what the grade was actually
+    // built from, so it is what the note has to report.
+    const lanes = P.weightedLaneGold14 ?? P.teamLaneGold14;
+    if (lanes != null && lanes <= -1500) {
+      notes.push(`lanes ${Math.abs(Math.round(lanes / 100)) / 10}k down @${P.benchMinute}`);
+    }
+    if (P.tradeCount >= 2 && P.tradeValueLost > P.tradeValueWon * 1.4) {
+      notes.push(`lost the cross-map trades (${P.tradeValueWon.toFixed(1)} for ${P.tradeValueLost.toFixed(1)})`);
     }
   }
 
@@ -112,6 +118,11 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
         teamEpicControl: P.teamEpicControl == null ? null : round1(P.teamEpicControl * 100),
         epicShare: P.epicShare == null ? null : round1(P.epicShare * 100),
         teamLaneGold14: P.teamLaneGold14 == null ? null : Math.round(P.teamLaneGold14),
+        weightedLaneGold14: P.weightedLaneGold14 == null ? null : Math.round(P.weightedLaneGold14),
+        weightedLanePostSwing: P.weightedLanePostSwing == null ? null : Math.round(P.weightedLanePostSwing),
+        lanePresence: P.lanePresence ?? null,
+        tradeValueWon: P.tradeCount ? round1(P.tradeValueWon) : null,
+        tradeValueLost: P.tradeCount ? round1(P.tradeValueLost) : null,
         weightedDeaths: P.weightedDeathsPerMin == null ? null : round1(P.weightedDeathsPerMin * ctx.minutes),
         lateKp: P.lateKp == null ? null : Math.round(P.lateKp * 100)
       },

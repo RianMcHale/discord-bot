@@ -89,7 +89,7 @@ test('the swing is reported in the stored context', () => {
 // The comeback lived inside laneComponent, which the jungle rubric never calls —
 // so four of five roles got it and the jungler silently got nothing.
 const ROLE_OF = { 1: 'TOP', 2: 'JUNGLE', 3: 'MIDDLE', 4: 'BOTTOM', 5: 'UTILITY' };
-const LANE_KEY = (id) => (id === 2 ? 'mapstate' : 'lane');
+const LANE_KEY = (id) => (id === 2 ? 'tempo' : 'lane');
 
 /** Puts all of team 100 behind at 14, optionally recovering afterwards. */
 function wholeTeam({ recover }) {
@@ -121,10 +121,11 @@ test('every role is credited for a comeback, jungle included', () => {
 
 test('the jungler’s comeback is measured across their lanes, not their own gold', () => {
   const back = wholeTeam({ recover: true });
-  const mapstate = back.p2.components.find((c) => c.key === 'mapstate');
-  // Five players recovering 2500g each is a 10k team swing, not 2500.
-  assert.match(mapstate.detail, /lanes -\d+g @14/);
-  assert.match(mapstate.detail, /post-lane \(\+10000g\)/, 'team-scale, summed across the lanes');
+  const tempo = back.p2.components.find((c) => c.key === 'tempo');
+  // Summed over the three lane *zones*, and bot lane's zone holds two players:
+  // (2500 + 2500 + 5000) / 3 zones, rescaled back to three lanes, is 10000.
+  assert.match(tempo.detail, /lanes -\d+g @14/);
+  assert.match(tempo.detail, /post-lane \(\+10000g\)/, 'lane-scale, not the jungler’s own 2500');
 });
 
 test('bot lane recovery is measured on the pair, like its deficit is', () => {

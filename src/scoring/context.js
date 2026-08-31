@@ -38,6 +38,34 @@ function epicWeight(ev) {
   return EPIC_WEIGHT[ev.monsterType] ?? 1;
 }
 
+// Two objectives taken close together on opposite sides of the map are a trade,
+// not two independent plays: one team gave up the contest to take something
+// elsewhere. Deciding a trade needs a side and a window, and both are cheap to
+// get wrong, so the tests pin them.
+const TRADE_WINDOW_MS = 45000;
+const TURRET_VALUE = { OUTER_TURRET: 0.6, INNER_TURRET: 0.9, BASE_TURRET: 1.1, NEXUS_TURRET: 1.3 };
+
+/** Which half of the map an objective sits on. Mid trades against either side. */
+function objectiveSide(ev) {
+  if (ev.type === 'ELITE_MONSTER_KILL') {
+    if (ev.monsterType === 'DRAGON') return 'BOT';
+    if (ev.monsterType === 'RIFTHERALD' || ev.monsterType === 'BARON_NASHOR' || ev.monsterType === 'HORDE') return 'TOP';
+    return null; // Atakhan spawns on a variable side; not classifiable
+  }
+  if (ev.type === 'BUILDING_KILL') {
+    if (ev.laneType === 'TOP_LANE') return 'TOP';
+    if (ev.laneType === 'BOT_LANE') return 'BOT';
+    if (ev.laneType === 'MID_LANE') return 'MID';
+  }
+  return null;
+}
+
+/** Macro value of an objective, on the same scale as EPIC_WEIGHT. */
+function objectiveValue(ev) {
+  if (ev.type === 'ELITE_MONSTER_KILL') return epicWeight(ev);
+  return TURRET_VALUE[ev.towerType] ?? 0.6;
+}
+
 function dist(a, b) {
   if (!a || !b) return Infinity;
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -263,6 +291,12 @@ export function buildContext(match, timeline = null) {
       teamEpicWeighted: null,
       teamEpicControl: null,
       teamLaneGold14: null,
+      weightedLaneGold14: null,
+      weightedLanePostSwing: null,
+      lanePresence: null,
+      tradeValueWon: 0,
+      tradeValueLost: 0,
+      tradeCount: 0,
       alliesUnanswered: null,
       dataQuality: hasTimeline ? 'full' : 'partial'
     };
@@ -493,6 +527,79 @@ export function buildContext(match, timeline = null) {
 
   for (const p of players) p.roamTakedowns = roamTakedowns.get(p.participantId) ?? 0;
 
+  // --- where the jungler actually was --------------------------------------
+  // Laning-phase frames spent within gank range of each of their own lanes.
+  // Unlike the pressure counters above this is not gated on the lane being
+  // contested: the question here is only "were you there", not "did it land".
+  const ZONES = ['TOP', 'MIDDLE', 'BOTTOM'];
+  const lanePresence = new Map(
+    Object.values(junglers)
+      .filter(Boolean)
+      .map((j) => [j.participantId, { TOP: 0, MIDDLE: 0, BOTTOM: 0 }])
+  );
+  for (const frame of frames) {
+    if (frame.timestamp > LANE_PHASE_MS) break;
+    for (const teamId of [100, 200]) {
+      const j = junglers[teamId];
+      if (!j) continue;
+      const jf = pf(frame, j.participantId);
+      if (!jf?.position) continue;
+      const counted = new Set();
+      for (const laner of players) {
+        if (laner.teamId !== teamId) continue;
+        const zone = zoneForRole(laner.role);
+        if (!zone || counted.has(zone)) continue;
+        const lf = pf(frame, laner.participantId);
+        if (!lf?.position) continue;
+        if (dist(jf.position, lf.position) <= GANK_RADIUS) {
+          lanePresence.get(j.participantId)[zone] += 1;
+          counted.add(zone);
+        }
+      }
+    }
+  }
+
+  // Each lane's gold swing at 14, weighted by how much of laning the jungler
+  // spent in it. A jungler who was everywhere equally — or nowhere at all —
+  // gets a flat average across the three lanes, which is exactly what grading
+  // the lanes as one lump already did. Camping a lane makes that lane most of
+  // the grade, which is the part the lump got wrong.
+  //
+  // The weights are floored at 1 and capped at 3 on purpose. Positions are
+  // sampled once a minute, so presence is roughly fourteen dots per game: good
+  // enough to say "mostly top", never good enough to fully credit or fully
+  // absolve a jungler for one lane.
+  for (const teamId of [100, 200]) {
+    const j = junglers[teamId];
+    if (!j) continue;
+    const presence = lanePresence.get(j.participantId) ?? { TOP: 0, MIDDLE: 0, BOTTOM: 0 };
+    const seen = ZONES.reduce((s, z) => s + presence[z], 0);
+
+    let num14 = 0;
+    let numPost = 0;
+    let den = 0;
+    for (const zone of ZONES) {
+      const mine = players.filter((p) => p.teamId === teamId && zoneForRole(p.role) === zone);
+      const theirs = players.filter((p) => p.teamId !== teamId && zoneForRole(p.role) === zone);
+      if (!mine.length || mine.length !== theirs.length) continue;
+      if ([...mine, ...theirs].some((p) => p.gold14 == null)) continue;
+      const at14 = (side) => side.reduce((s, p) => s + p.gold14, 0);
+      const post = (side) => side.reduce((s, p) => s + (p.raw.goldEarned - p.gold14), 0);
+
+      const w = 1 + 2 * (seen > 0 ? presence[zone] / seen : 1 / ZONES.length);
+      num14 += w * (at14(mine) - at14(theirs));
+      numPost += w * (post(mine) - post(theirs));
+      den += w;
+    }
+    if (den > 0) {
+      // Rescaled back to three lanes' worth of gold so it lands on the same
+      // scale the flat figure used and the thresholds tuned against it hold.
+      j.weightedLaneGold14 = (num14 / den) * ZONES.length;
+      j.weightedLanePostSwing = (numPost / den) * ZONES.length;
+      j.lanePresence = presence;
+    }
+  }
+
   for (const p of players) {
     if (!zoneForRole(p.role)) continue; // junglers don't receive lane pressure
     const v = visitCount.get(p.participantId);
@@ -551,6 +658,61 @@ export function buildContext(match, timeline = null) {
     const credits = p.personalEpics > 0 ? p.personalEpics : p.epicCredits;
     p.epicShare = own > 0 ? clamp(credits / own, 0, 1) : null;
     p.teamEpicControl = own + other > 0 ? own / (own + other) : null;
+  }
+
+  // --- cross-map objective trades -------------------------------------------
+  // Taking herald while they take drake is a trade, and making it — or refusing
+  // it — is a jungle decision. Scored on value won against value given up,
+  // which is a different question from who took more objectives overall; that
+  // is what team epic control already answers.
+  const teamOfTake = (ev) => {
+    const killer = byId.get(ev.killerId);
+    if (ev.type === 'BUILDING_KILL') {
+      // `teamId` on a building kill is the team that *owned* it. Minion-killed
+      // structures have no killer, so the owner is the only signal.
+      if (killer) return killer.teamId;
+      return ev.teamId === 100 ? 200 : ev.teamId === 200 ? 100 : null;
+    }
+    return ev.killerTeamId || killer?.teamId || null;
+  };
+
+  const takes = events
+    .filter((ev) => ev.type === 'ELITE_MONSTER_KILL' || ev.type === 'BUILDING_KILL')
+    .map((ev) => ({ teamId: teamOfTake(ev), side: objectiveSide(ev), value: objectiveValue(ev), t: ev.timestamp }))
+    .filter((t) => (t.teamId === 100 || t.teamId === 200) && t.side)
+    .sort((a, b) => a.t - b.t);
+
+  // Each objective can belong to at most one trade, paired with the nearest
+  // eligible counter in time. Without that, one drake taken during a flurry of
+  // turret trades counts against every one of them.
+  const traded = { 100: { won: 0, lost: 0, count: 0 }, 200: { won: 0, lost: 0, count: 0 } };
+  const paired = new Set();
+  for (let i = 0; i < takes.length; i++) {
+    if (paired.has(i)) continue;
+    const a = takes[i];
+    let best = -1;
+    for (let k = 0; k < takes.length; k++) {
+      if (k === i || paired.has(k)) continue;
+      const b = takes[k];
+      if (b.teamId === a.teamId || b.side === a.side) continue;
+      if (Math.abs(b.t - a.t) > TRADE_WINDOW_MS) continue;
+      if (best === -1 || Math.abs(b.t - a.t) < Math.abs(takes[best].t - a.t)) best = k;
+    }
+    if (best === -1) continue;
+    const b = takes[best];
+    paired.add(i);
+    paired.add(best);
+    traded[a.teamId].won += a.value;
+    traded[a.teamId].lost += b.value;
+    traded[a.teamId].count += 1;
+    traded[b.teamId].won += b.value;
+    traded[b.teamId].lost += a.value;
+    traded[b.teamId].count += 1;
+  }
+  for (const p of players) {
+    p.tradeValueWon = traded[p.teamId].won;
+    p.tradeValueLost = traded[p.teamId].lost;
+    p.tradeCount = traded[p.teamId].count;
   }
 
   // --- late-game kill participation ----------------------------------------

@@ -18,16 +18,16 @@ test('a jungler with a good KDA but no map impact scores badly', () => {
   assert.equal(jungler.grade, 'F');
 });
 
-test('the farming jungler is graded on objectives and lane state, not deaths', () => {
+test('the farming jungler is graded on objectives and tempo, not deaths', () => {
   const by = Object.fromEntries(jungler.components.map((c) => [c.key, c]));
   // Their best component is death discipline — and it must not rescue the score.
   assert.ok(by.deaths.score > 60, 'low deaths should still score well in isolation');
   assert.ok(by.objectives.score < 40, 'lost objective control should score badly');
-  assert.ok(by.mapstate.score < 30, 'all three lanes behind at 14 should score badly');
+  assert.ok(by.tempo.score < 40, 'lanes behind everywhere, and no camps taken off the enemy');
   assert.equal(by.pressure.score, 0, 'no gank impact at all');
   // Deaths are the lightest weight in the jungle rubric on purpose.
   assert.ok(by.deaths.weight < by.objectives.weight);
-  assert.ok(by.deaths.weight < by.mapstate.weight);
+  assert.ok(by.deaths.weight < by.tempo.weight);
 });
 
 test('a camped top laner is not the worst player in the game', () => {

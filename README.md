@@ -24,13 +24,13 @@ them honestly.
 | Lane @14 (gold + xp vs counterpart) | 25 | — | 24 | 18 | 12 |
 | Side pressure (plates, turret dmg, solo kills) | 15 | — | — | — | — |
 | Teamfight / damage | 22 | 12 | 24 | 28 | — |
-| Death discipline | 20 | 8 | 16 | 20 | 12 |
+| Death discipline | 20 | 9 | 16 | 20 | 12 |
 | Objectives | 10 | 24 | 8 | 12 | 8 |
-| Map presence / roam | 8 | — | 18 | 6 | 18 |
-| Lanes @14 (state of the map you shaped) | — | 20 | — | — | — |
-| Gank impact & counter-response | — | 14 | — | — | — |
-| Jungle economy & counter-jungling | — | 12 | — | — | — |
-| Vision | — | 10 | (in tempo) | — | 28 |
+| Map presence / roam | 8 | — | 18 | 6 | 22 |
+| Gank impact & counter-response | — | 18 | — | — | — |
+| Tempo & map control | — | 17 | — | — | — |
+| Jungle farm (own camps) | — | 10 | — | — | — |
+| Vision | — | 10 | (in tempo) | — | 24 |
 | Farm & gold | — | — | 10 | 16 | — |
 | Engage & peel (CC, heal/shield, saves) | — | — | — | — | 22 |
 
@@ -39,10 +39,36 @@ The composite of those weights **is** the score — nothing is blended in on top
 ### Why it's built this way
 
 **A low-impact jungler has nowhere to hide.** Deaths are the *lightest* weight in the
-jungle rubric (8%) and objective control plus the state of the three lanes at 14 minutes
-are the heaviest (44% combined). A jungler who farms safely to 3/2/9, contests nothing and
-lets every lane fall behind gets graded on exactly that. Under the old model that same
-game scored *well*, because low deaths were 35% of the composite for everyone.
+jungle rubric (9%) and objective control, gank impact and tempo are the heaviest (59%
+combined). A jungler who farms safely to 3/2/9, contests nothing and lets every lane fall
+behind gets graded on exactly that. Under the old model that same game scored *well*,
+because low deaths were 35% of the composite for everyone.
+
+**A jungler is graded on the map they were actually on.** *Tempo & map control* replaced a
+flat "how were my four lanes doing at 14 minutes", which was the only component in any
+rubric where the score was set almost entirely by other people — and symmetric with the
+enemy jungler, so a laner running it down handed the *other* jungler credit for it. The
+three parts are decisions only the jungler makes:
+
+- **Cross-map trades (40%)** — when both teams take something on opposite sides of the map
+  inside 45 seconds, that's a trade. Graded on value won against value given up (a baron
+  for a drake is a win, the reverse isn't), using the same weights objective control uses.
+  Two drakes isn't a trade, it's a contest; six minutes apart isn't a trade, it's two
+  plays. No trades on the board and the part drops out rather than resolving to a neutral
+  50 — a game where nobody traded says nothing about whether you trade well.
+- **Counter-jungling (30%)** — moved here out of Jungle farm, where it was a quarter of a
+  12-point component and amounted to about 3% of the grade. Taking the enemy's camps is a
+  tempo act, not a farming one. Jungle farm is now purely "did you clear your own jungle
+  as fast as they cleared theirs".
+- **Presence-weighted lane state (30%)** — the honest half of the old component. Each
+  lane's gold swing at 14, weighted by how much of laning you spent in it. Camp a lane to
+  a win and it's yours; a lane that won without you is only partly yours. A jungler who
+  was everywhere equally, or nowhere at all, gets the flat average — exactly what the old
+  component always did.
+
+  The weights are capped between 1× and 3× deliberately. Riot samples position once a
+  minute, so presence is about fourteen dots per game: enough to say "mostly top", never
+  enough to fully credit or fully absolve a jungler for one lane.
 
 **A camped laner isn't punished for someone else's macro.** The bot reads the timeline for
 enemy-jungler commitments into each lane before 15 minutes — landed ganks, plus frames
@@ -82,9 +108,22 @@ support who bought support items.
 
   Each role is measured on whatever its deficit was measured on. A solo laner uses their
   own gold; **bot lane uses the pair's**, so a support isn't credited for their ADC's
-  recovery; and the **jungler uses all three lanes combined** — their lanes being 3k down
-  at 14 and level by the end is the same achievement a scaling carry gets credit for, it
-  just shows up across the whole map instead of in one lane.
+  recovery; and the **jungler uses their lanes, presence-weighted** — those lanes being 3k
+  down at 14 and level by the end is the same achievement a scaling carry gets credit for,
+  it just shows up across the map instead of in one lane.
+
+- **The damage bar moves with the clock.** An ADC with one item does a fraction of the
+  damage they do with five, while a bruiser or tank is nearest their peak early and fades.
+  Grading both against one fixed damage share marked every ADC down in a short game and
+  every top laner up — a verdict on the clock rather than on the player, and it landed on
+  the ADC's heaviest component (28%). The expected share now shifts with game length, per
+  role, anchored so that a 30-minute game is unchanged. An ADC on 23% of their team's
+  damage in a 20-minute game now scores the same as one on 31% in a 40-minute game,
+  because those are the same performance.
+
+  The slopes are deliberately conservative. They estimate a real effect, and
+  under-correcting leaves a small residual bias where over-correcting would invent the
+  opposite one and start rewarding ADCs for short games.
 
 **Roaming off a won lane is credited, not punished.** A takedown away from your own
 lane during laning phase counts as a roam, and for supports it's part of the

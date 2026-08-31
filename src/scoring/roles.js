@@ -33,6 +33,34 @@ export const BASELINE = {
   UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
 
+// Damage share is not a constant across a game's length. A marksman with one
+// item does a fraction of the damage they do with five; a bruiser or a tank is
+// nearest their peak early and fades. Grading both against one fixed number
+// marks every ADC down in a short game and every top laner up, which is a
+// verdict on the clock rather than on the player.
+//
+// `dmgShare` in BASELINE stays the figure expected at 30 minutes; the slope is
+// the shift per ten minutes either side of that. The slopes are deliberately
+// conservative — they estimate a real and well-established effect, and
+// under-correcting leaves a small residual bias where over-correcting would
+// invent the opposite one and start rewarding ADCs for short games.
+const DMG_SHARE_SLOPE = {
+  TOP: -0.015,
+  JUNGLE: -0.009,
+  MIDDLE: 0.003,
+  BOTTOM: 0.032,
+  UTILITY: 0,
+  UNKNOWN: 0
+};
+const DMG_SHARE_ANCHOR_MINUTES = 30;
+
+/** The damage share this role is expected to do in a game of this length. */
+export function expectedDmgShare(P, ctx, baseline) {
+  const slope = DMG_SHARE_SLOPE[P.role] ?? 0;
+  const mins = clamp(ctx.minutes, 18, 45);
+  return clamp(baseline.dmgShare + (slope * (mins - DMG_SHARE_ANCHOR_MINUTES)) / 10, 0.05, 0.5);
+}
+
 // Gold swing a single committed jungle play is worth, including the tempo the
 // laner loses backing off the wave. Capped at 3 net commitments so a genuinely
 // 5k-down lane can't be fully excused by "I got camped".
@@ -177,7 +205,8 @@ function deathComponent(P, ctx, baseline) {
  */
 function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = false, useDpm = true } = {}) {
   const opp = opponentOf(P, ctx);
-  const dmgScore = P.teamDamageShare == null ? null : versus(P.teamDamageShare, baseline.dmgShare, { prior: 0.03, gain: 1.25 });
+  const dmgScore =
+    P.teamDamageShare == null ? null : versus(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { prior: 0.03, gain: 1.25 });
   const tankScore = P.teamTakenShare == null ? null : versus(P.teamTakenShare, baseline.tankShare, { prior: 0.05, gain: 1.0 });
 
   let shareScore = weightedMean([
@@ -301,6 +330,70 @@ function participationComponent(P, ctx, baseline) {
   return { score, detail };
 }
 
+/**
+ * The jungler's tempo grade. Replaces a flat "how were my four lanes doing at
+ * 14 minutes", which was the only component in any rubric where the score was
+ * set almost entirely by other people — and symmetric with the enemy jungler,
+ * so a laner running it down handed the other jungler credit for it.
+ *
+ * The three parts are decisions only the jungler makes:
+ *
+ *   * which objectives to trade for which, when both sides are taking something
+ *   * whether the enemy's jungle is theirs to keep
+ *   * which lanes their presence actually reached, and what happened there
+ *
+ * The last of those keeps the honest half of the old component. Lane state
+ * still counts, but weighted by where the jungler was, so camping a lane to a
+ * win is credited and a lane that won without them is only partly theirs.
+ */
+function tempoComponent(P, ctx) {
+  const opp = opponentOf(P, ctx);
+
+  // Value won against value given up, across objectives both teams took on
+  // opposite sides of the map inside the same window. With no trades on the
+  // board this drops out rather than resolving to a neutral 50 — a game where
+  // nobody traded says nothing about whether you trade well.
+  const trades = P.tradeCount > 0 ? versus(P.tradeValueWon, P.tradeValueLost, { prior: 1.2, gain: 1.4 }) : null;
+
+  const counter = opp ? versus(P.counterJungleCs, opp.counterJungleCs, { prior: 4, gain: 1.3 }) : null;
+
+  const comeback = comebackAdjustment(P.weightedLaneGold14, P.weightedLanePostSwing, { floor: 2600 });
+  const base = fromDiff(P.weightedLaneGold14, scaleToBench(3200, P));
+  const lanes = base === null ? null : clamp(base + comeback, 0, 100);
+
+  const score = weightedMean([
+    { score: trades, weight: 0.4 },
+    { score: counter, weight: 0.3 },
+    { score: lanes, weight: 0.3 }
+  ]);
+
+  // Name the lane they lived in, when there was one. It is the whole reason the
+  // lane figure is weighted the way it is, so the detail line should say it.
+  const presence = P.lanePresence;
+  const seen = presence ? presence.TOP + presence.MIDDLE + presence.BOTTOM : 0;
+  const dominant =
+    seen >= 3
+      ? Object.entries(presence)
+          .filter(([, n]) => n / seen > 0.5)
+          .map(([zone]) => zone.toLowerCase())[0]
+      : null;
+
+  const parts = [];
+  if (P.weightedLaneGold14 != null) {
+    parts.push(
+      `lanes ${P.weightedLaneGold14 >= 0 ? '+' : ''}${Math.round(P.weightedLaneGold14)}g @${P.benchMinute ?? 14}` +
+        (dominant ? ` (mostly ${dominant})` : '') +
+        comebackDetail(comeback, P.weightedLanePostSwing)
+    );
+  }
+  if (P.tradeCount > 0) {
+    parts.push(`traded ${P.tradeValueWon.toFixed(1)} for ${P.tradeValueLost.toFixed(1)}`);
+  }
+  parts.push(`${P.counterJungleCs} enemy camps`);
+
+  return { score, detail: parts.join(' · ') };
+}
+
 // ---------------------------------------------------------------------------
 // Role rubrics
 // ---------------------------------------------------------------------------
@@ -345,22 +438,7 @@ function scoreJungle(P, ctx) {
   const b = BASELINE.JUNGLE;
   const opp = opponentOf(P, ctx);
 
-  // The jungler's version of a comeback. Their lanes being 3k down at 14 and
-  // level by the end is the same achievement a scaling carry gets credit for —
-  // it just shows up across the whole map instead of one lane. Team-scale gold,
-  // so the floor is a few thousand rather than a few hundred.
-  const mapComeback = comebackAdjustment(P.teamLaneGold14, P.teamPostLaneSwing, { floor: 2600 });
-  const mapState = {
-    score: (() => {
-      const base = fromDiff(P.teamLaneGold14, scaleToBench(3200, P));
-      return base === null ? null : clamp(base + mapComeback, 0, 100);
-    })(),
-    detail:
-      P.teamLaneGold14 == null
-        ? null
-        : `lanes ${P.teamLaneGold14 >= 0 ? '+' : ''}${Math.round(P.teamLaneGold14)}g @${P.benchMinute ?? 14}` +
-          comebackDetail(mapComeback, P.teamPostLaneSwing)
-  };
+  const tempo = tempoComponent(P, ctx);
 
   // Gank conversion: takedowns your commitments produced, versus the enemy
   // jungler's. Counter-response: how much unanswered pressure your own lanes ate
@@ -380,24 +458,26 @@ function scoreJungle(P, ctx) {
     detail: `${P.gankTakedowns} gank takedowns` + (P.alliesUnanswered != null ? ` · ${P.alliesUnanswered.toFixed(1)} unanswered` : '')
   };
 
+  // Counter-jungling has moved out to Tempo, where it belongs: taking the
+  // enemy's camps is a tempo act, not a farming one. What is left here is pure
+  // efficiency — did you clear your own jungle as fast as they cleared theirs.
   const economy = {
     score: weightedMean([
-      { score: opp ? versus(P.jungleCs14, opp.jungleCs14, { prior: 8, gain: 1.4 }) : null, weight: 0.4 },
-      { score: opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null, weight: 0.35 },
-      { score: opp ? versus(P.counterJungleCs, opp.counterJungleCs, { prior: 4, gain: 1.3 }) : null, weight: 0.25 }
+      { score: opp ? versus(P.jungleCs14, opp.jungleCs14, { prior: 8, gain: 1.4 }) : null, weight: 0.55 },
+      { score: opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null, weight: 0.45 }
     ]),
-    detail: `${P.csPerMin.toFixed(1)} cs/min · ${P.counterJungleCs} enemy camps`
+    detail: `${P.csPerMin.toFixed(1)} cs/min · ${P.jungleCs14} camps @${P.benchMinute ?? 14}`
   };
 
   return {
     components: [
       component('objectives', 'Objectives', 24, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
-      component('mapstate', 'Lanes @14', 20, mapState.score, mapState.detail),
-      component('pressure', 'Gank impact', 14, pressure.score, pressure.detail),
-      component('economy', 'Jungle farm', 12, economy.score, economy.detail),
-      component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
+      component('pressure', 'Gank impact', 18, pressure.score, pressure.detail),
+      component('tempo', 'Tempo & map control', 17, tempo.score, tempo.detail),
       component('combat', 'Teamfight', 12, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true }))),
-      component('deaths', 'Deaths', 8, ...pick(deathComponent(P, ctx, b)))
+      component('economy', 'Jungle farm', 10, economy.score, economy.detail),
+      component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
+      component('deaths', 'Deaths', 9, ...pick(deathComponent(P, ctx, b)))
     ]
   };
 }
@@ -519,9 +599,14 @@ function scoreSupport(P, ctx) {
 
   return {
     components: [
-      component('vision', 'Vision', 28, ...pick(visionComponent(P, ctx, b))),
+      // Vision was 28 and Participation 18. Vision is the most reliable thing a
+      // support does, but it is also the easiest to accumulate without affecting
+      // the game, and at 28 it was the single heaviest stat in the rubric.
+      // Being where things happened is the better answer to "did this support
+      // do anything", so four points move across.
+      component('vision', 'Vision', 24, ...pick(visionComponent(P, ctx, b))),
       component('utility', 'Utility', 22, utility.score, utility.detail),
-      component('presence', 'Participation', 18, ...pick(presence)),
+      component('presence', 'Participation', 22, ...pick(presence)),
       component('deaths', 'Deaths', 12, ...pick(deathComponent(P, ctx, b))),
       component('lane', 'Bot lane', laneWeight(12, ctx), lane?.score, lane?.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.3 })))

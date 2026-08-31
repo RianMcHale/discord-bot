@@ -130,7 +130,7 @@ test('detail mode adds a full breakdown per player and nothing else', () => {
   const breakdown = detailed.fields.find((f) => f.name.includes('JunglePlayer'));
   // Every component in the jungle rubric, with its weight.
   assert.match(breakdown.value, /Objectives/);
-  assert.match(breakdown.value, /Lanes @14/);
+  assert.match(breakdown.value, /Tempo & map control/);
   assert.match(breakdown.value, /24%/);
 });
 
