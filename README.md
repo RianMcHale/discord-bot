@@ -256,9 +256,21 @@ bench call.
   too close between the bottom two to be a real verdict.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 - `/resetgames confirm:RESET` — wipe all scored game history. Keeps registered players.
-  Irreversible, so it's **restricted to the bot owner**; anyone else gets a private
-  refusal and nothing is touched. Set `ADMIN_USER_IDS` (comma-separated Discord user
-  ids) to change who can run it — it defaults to the owner, so no config is needed.
+  **Restricted to the bot owner**; anyone else gets a private refusal and nothing is
+  touched, and permission is checked *before* the confirmation word so a stranger learns
+  nothing from a wrong guess. Set `ADMIN_USER_IDS` (comma-separated Discord user ids) to
+  change who can run it — it defaults to the owner, so no config is needed.
+
+  `last:<n>` clears only the **n most recent** games instead of everything, which is how
+  you re-score after a scoring change: clear them, then re-fetch and they come back
+  graded by the current rubric. Older games are left alone, and so is the skipped-match
+  cache — those were never scored, so re-scoring has no business reconsidering them. The
+  reply hands you the exact `/fetchgame` command to run, including how many passes it
+  takes, since each pass scores at most 5.
+
+  Two things to know: the watcher may also pick the cleared games up on its next scan and
+  re-post them to the watch channel on its own, and `lookback` counts *each player's*
+  recent matches, so solo queue played since then can push a squad game out of the window.
 
 ## Which games get scored
 
