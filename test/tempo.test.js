@@ -147,6 +147,99 @@ test('one objective belongs to at most one trade', () => {
   assert.equal(flurry.jungler.context.tradeValueLost, 1.0, 'the drake, counted once');
 });
 
+// Camps alone read backwards: a jungler who cleared 24 of your camps and died
+// five times doing it scored as *winning* the enemy jungle, and the jungler who
+// killed them there scored as losing it.
+/** Adds `n` kills of `victimId` by `killerId`, deep in the victim's enemy half. */
+function invadeKills(s, { killerId, victimId, n, deep = true }) {
+  // Team 100's own half is x+y < 15000, so a team-100 victim dying at 12000,12000
+  // died on the wrong side of the map.
+  const pos = deep
+    ? victimId <= 5
+      ? { x: 12000, y: 12000 }
+      : { x: 2000, y: 2000 }
+    : victimId <= 5
+      ? { x: 2000, y: 2000 }
+      : { x: 12000, y: 12000 };
+  for (let i = 0; i < n; i++) {
+    const m = 17 + i * 2;
+    s.timeline.info.frames[m].events.push({
+      timestamp: m * 60000,
+      type: 'CHAMPION_KILL',
+      killerId,
+      victimId,
+      assistingParticipantIds: [],
+      position: pos
+    });
+  }
+}
+
+test('killing the enemy jungler in their own jungle counts as taking it', () => {
+  // Same camp counts both ways. The only difference is who won the fights.
+  const base = () => {
+    const s = campedTopScenario({ durationMinutes: 32 });
+    s.match.info.participants.find((p) => p.participantId === 2).challenges.enemyJungleMonsterKills = 17;
+    s.match.info.participants.find((p) => p.participantId === 7).challenges.enemyJungleMonsterKills = 24;
+    return s;
+  };
+
+  const campsOnly = base();
+  const wonTheInvades = base();
+  invadeKills(wonTheInvades, { killerId: 2, victimId: 7, n: 5 });
+
+  const scoreOf = (s) =>
+    scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] }).p2.components.find((c) => c.key === 'tempo').score;
+
+  assert.ok(
+    scoreOf(wonTheInvades) > scoreOf(campsOnly) + 3,
+    `killing them there has to beat being out-farmed there (${scoreOf(campsOnly)} -> ${scoreOf(wonTheInvades)})`
+  );
+});
+
+// The fixture already contains deaths on both sides of the map, so these
+// measure the change five invades make rather than absolute counts.
+const contextOf = (s, key) => scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] })[key].context;
+
+test('camps bought with your life are not a win', () => {
+  const before = campedTopScenario({ durationMinutes: 32 });
+  const after = campedTopScenario({ durationMinutes: 32 });
+  invadeKills(after, { killerId: 2, victimId: 7, n: 5 });
+
+  // Five takedowns are worth fifteen camps to the winner...
+  assert.equal(contextOf(after, 'p2').jungleControl - contextOf(before, 'p2').jungleControl, 15);
+  // ...and the same five deaths cost the loser ten off their camp lead.
+  assert.equal(contextOf(after, 'p7').jungleControl - contextOf(before, 'p7').jungleControl, -10);
+});
+
+test('a death in your own jungle is not an invade death', () => {
+  const before = campedTopScenario({ durationMinutes: 32 });
+  const after = campedTopScenario({ durationMinutes: 32 });
+  invadeKills(after, { killerId: 7, victimId: 2, n: 3, deep: false });
+
+  // Dying at home is a death, and the Deaths component charges for it. It is
+  // not evidence about who controlled the *enemy* jungle.
+  assert.equal(contextOf(after, 'p2').invadeDeaths, contextOf(before, 'p2').invadeDeaths);
+  assert.equal(contextOf(after, 'p2').jungleControl, contextOf(before, 'p2').jungleControl);
+});
+
+test('the detail line says what went into the invade figure', () => {
+  const s = campedTopScenario({ durationMinutes: 32 });
+  invadeKills(s, { killerId: 2, victimId: 7, n: 4 });
+  const scored = scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] });
+  const detail = scored.p2.components.find((c) => c.key === 'tempo').detail;
+  assert.match(detail, /4 on their jungler/, 'the camp count alone reads as the whole story otherwise');
+  assert.match(scored.p7.components.find((c) => c.key === 'tempo').detail, /\d+ died deep/);
+});
+
+test('takedowns on the enemy jungler count after laning phase too', () => {
+  // gankTakedowns stops at 15 minutes because a lane gank at 25 is not a gank.
+  // A fight over their raptors at 24 minutes is the same event it was at 6.
+  const s = campedTopScenario({ durationMinutes: 32 });
+  invadeKills(s, { killerId: 2, victimId: 7, n: 3 }); // minutes 17, 19, 21
+  const scored = scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] });
+  assert.equal(scored.p2.context.enemyJunglerTakedowns, 3);
+});
+
 test('counter-jungling moved to tempo and left jungle farm alone', () => {
   const none = game({ counterCamps: 0 });
   const lots = game({ counterCamps: 25 });

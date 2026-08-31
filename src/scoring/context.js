@@ -43,6 +43,12 @@ function epicWeight(ev) {
 // elsewhere. Deciding a trade needs a side and a window, and both are cheap to
 // get wrong, so the tests pin them.
 const TRADE_WINDOW_MS = 45000;
+
+// What an invade is worth, priced in jungle camps so it can be added to a camp
+// count. A takedown on the enemy jungler is worth roughly three camps of tempo;
+// dying on an invade costs about two.
+const INVADE_TAKEDOWN_CAMPS = 3;
+const INVADE_DEATH_CAMPS = 2;
 const TURRET_VALUE = { OUTER_TURRET: 0.6, INNER_TURRET: 0.9, BASE_TURRET: 1.1, NEXUS_TURRET: 1.3 };
 
 /** Which half of the map an objective sits on. Mid trades against either side. */
@@ -224,6 +230,14 @@ export function buildContext(match, timeline = null) {
       kp: Number.isFinite(ch.killParticipation)
         ? ch.killParticipation
         : safeDiv(p.kills + p.assists, teamKills, 0),
+      // Share of the team's kills, as opposed to `kp`, which counts assists and
+      // so rewards being present over being decisive. Damage share misses the
+      // same thing from the other side: an assassin converts less total damage
+      // into more kills than a mage chipping a whole teamfight does.
+      //
+      // Unlike kp this needs no rescaling for how the game spread its kills —
+      // the five shares on a team sum to exactly 1 by construction.
+      killShare: teamKills > 0 ? p.kills / teamKills : null,
       teamDamageShare: Number.isFinite(ch.teamDamagePercentage) ? ch.teamDamagePercentage : null,
       teamTakenShare: Number.isFinite(ch.damageTakenOnTeamPercentage) ? ch.damageTakenOnTeamPercentage : null,
       dpm: Number.isFinite(ch.damagePerMinute)
@@ -297,6 +311,9 @@ export function buildContext(match, timeline = null) {
       tradeValueWon: 0,
       tradeValueLost: 0,
       tradeCount: 0,
+      enemyJunglerTakedowns: 0,
+      invadeDeaths: 0,
+      jungleControl: null,
       alliesUnanswered: null,
       dataQuality: hasTimeline ? 'full' : 'partial'
     };
@@ -457,6 +474,42 @@ export function buildContext(match, timeline = null) {
     if (!involved) continue;
     victim.gankDeaths += 1;
     enemyJungler.gankTakedowns += 1;
+  }
+
+  // --- the invade war -------------------------------------------------------
+  // Camps taken off the enemy jungle used to be the whole story, and it read
+  // backwards: a jungler who farmed 24 of your camps and died five times doing
+  // it was scored as *winning* the enemy jungle, and the jungler who killed
+  // them there scored as losing it, because kills are not camps.
+  //
+  // The loop above cannot help — it explicitly skips jungler victims, since a
+  // jungler killing the enemy jungler is not a gank on a lane. So the two
+  // halves of an invade are counted here, on the whole game rather than just
+  // laning phase: a fight over the enemy's raptors at 24 minutes is the same
+  // event it was at 6.
+  for (const ev of kills) {
+    const victim = byId.get(ev.victimId);
+    if (!victim) continue;
+
+    if (victim.role === 'JUNGLE') {
+      for (const id of [ev.killerId, ...(ev.assistingParticipantIds || [])]) {
+        const p = byId.get(id);
+        if (p && p.teamId !== victim.teamId) p.enemyJunglerTakedowns += 1;
+      }
+    }
+    // Died on the wrong side of the map: whatever you went there for, you paid
+    // for it. `isOwnHalf` is the same test the deep-death penalty already uses.
+    if (ev.position && !isOwnHalf(ev.position, victim.teamId)) victim.invadeDeaths += 1;
+  }
+
+  for (const p of players) {
+    if (p.role !== 'JUNGLE') continue;
+    // Netted in camps, so it stays on the scale the comparison was tuned for.
+    // The cost of dying is lighter than the reward for a takedown on purpose:
+    // deaths are already charged for in the Deaths component, and charging the
+    // full amount in both places punishes one event twice.
+    p.jungleControl =
+      p.counterJungleCs + INVADE_TAKEDOWN_CAMPS * p.enemyJunglerTakedowns - INVADE_DEATH_CAMPS * p.invadeDeaths;
   }
 
   // The mirror signal: takedowns a laner got *with* their own jungler in lane.

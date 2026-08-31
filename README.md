@@ -56,10 +56,26 @@ three parts are decisions only the jungler makes:
   Two drakes isn't a trade, it's a contest; six minutes apart isn't a trade, it's two
   plays. No trades on the board and the part drops out rather than resolving to a neutral
   50 — a game where nobody traded says nothing about whether you trade well.
-- **Counter-jungling (30%)** — moved here out of Jungle farm, where it was a quarter of a
-  12-point component and amounted to about 3% of the grade. Taking the enemy's camps is a
-  tempo act, not a farming one. Jungle farm is now purely "did you clear your own jungle
-  as fast as they cleared theirs".
+- **Control of the enemy jungle (30%)** — moved here out of Jungle farm, where it was a
+  quarter of a 12-point component and amounted to about 3% of the grade. Taking the
+  enemy's camps is a tempo act, not a farming one, and Jungle farm is now purely "did you
+  clear your own jungle as fast as they cleared theirs".
+
+  Camps alone read *backwards*: a jungler who cleared 24 of your camps and died five times
+  doing it scored as winning the enemy jungle, while the jungler who killed them there
+  scored as losing it, because kills are not camps. The figure is now netted, priced in
+  camps so it stays on the scale the comparison was tuned for:
+
+  ```
+  enemy camps taken  +  3 × takedowns on their jungler  −  2 × your deaths in their half
+  ```
+
+  Dying costs less than a takedown earns because the Deaths component already charges for
+  it, and charging full price twice punishes one event two ways. Jungler-on-jungler
+  takedowns are counted for the whole game, not just laning: `gankTakedowns` stops at 15
+  minutes and skips jungler victims entirely — correctly, since a jungler killing the
+  enemy jungler is not a gank on a lane — but that left the fight over their raptors at 24
+  minutes counted nowhere at all.
 - **Presence-weighted lane state (30%)** — the honest half of the old component. Each
   lane's gold swing at 14, weighted by how much of laning you spent in it. Camp a lane to
   a win and it's yours; a lane that won without you is only partly yours. A jungler who
@@ -82,6 +98,19 @@ Net pressure then:
   is dived every wave can't take plates either;
 - **credits the enemy jungler** who created the pressure, and **debits your own jungler**
   for every commitment they left unanswered.
+
+**Kill share corrects damage share, for the roles where damage share lies.** Damage share
+misses conversion from both directions: an assassin turns less total damage into more
+kills, and a mage chipping a whole teamfight racks up damage that killed nobody. Jungle
+felt it worst, being the only rubric with no participation component at all — a jungler on
+40% of their team's kills was invisible outside a damage number that understated them.
+
+Kill share now sits *inside* the Teamfight/Damage component rather than beside it, so it
+can never be a route to a good score on its own: taking every kill on the team while doing
+no damage still grades badly. Jungle leans on it hardest, mid gets it lighter (Roaming
+already measures participation there), and top and ADC not at all — top counts solo kills
+under Side lane, and the ADC has Presence plus 28% on damage. The five roles'
+baselines sum to exactly 1, because a share of one team's kills is what it is.
 
 **Deaths are weighted by whose fault they were.** A 1v1 death counts 1.25×, a 3-man
 collapse 0.75×, a death inside a teamfight 0.55×. Traded deaths, deaths alone in enemy

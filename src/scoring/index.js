@@ -123,8 +123,12 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
         lanePresence: P.lanePresence ?? null,
         tradeValueWon: P.tradeCount ? round1(P.tradeValueWon) : null,
         tradeValueLost: P.tradeCount ? round1(P.tradeValueLost) : null,
+        jungleControl: P.jungleControl,
+        enemyJunglerTakedowns: P.enemyJunglerTakedowns,
+        invadeDeaths: P.invadeDeaths,
         weightedDeaths: P.weightedDeathsPerMin == null ? null : round1(P.weightedDeathsPerMin * ctx.minutes),
-        lateKp: P.lateKp == null ? null : Math.round(P.lateKp * 100)
+        lateKp: P.lateKp == null ? null : Math.round(P.lateKp * 100),
+        killShare: P.killShare == null ? null : Math.round(P.killShare * 100)
       },
       notes: buildNotes(P, ctx)
     };

@@ -24,13 +24,16 @@ import { versus, fromDiff, weightedMean, blend, component, clamp, safeDiv } from
 // Rough Summoner's Rift role averages. Used as the second anchor so a lane where
 // both players were awful doesn't hand one of them a good score just for being
 // marginally less awful.
+// `killShare` is a share of the team's kills, so the five roles' figures sum to
+// 1 by construction. Carries take more of them than the two roles whose job is
+// to set the kill up.
 export const BASELINE = {
-  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, csPerMin: 6.4, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
-  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, csPerMin: 5.6, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
-  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, csPerMin: 7.0, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, csPerMin: 7.6, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
-  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4 },
-  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
+  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
+  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
+  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
+  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4 },
+  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
 
 // Damage share is not a constant across a game's length. A marksman with one
@@ -203,7 +206,7 @@ function deathComponent(P, ctx, baseline) {
  * legitimate (`specialist`), being excellent at one is enough; for an ADC it
  * isn't, so the weighted blend stands.
  */
-function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = false, useDpm = true } = {}) {
+function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = false, useDpm = true, killShareWeight = 0 } = {}) {
   const opp = opponentOf(P, ctx);
   const dmgScore =
     P.teamDamageShare == null ? null : versus(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { prior: 0.03, gain: 1.25 });
@@ -221,11 +224,32 @@ function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = 
 
   const dpmScore = useDpm && opp ? versus(P.dpm, opp.dpm, { prior: 60, gain: 1.25 }) : null;
 
+  // How much of the team's killing was you. Damage share alone misses this from
+  // both directions: an assassin converts less total damage into more kills, and
+  // a mage chipping a whole teamfight racks up damage that killed nobody. Kept
+  // deliberately minor — kills are noisy and the model exists to get away from
+  // grading on KDA, so this corrects damage share rather than competing with it.
+  const killScore =
+    P.killShare == null
+      ? null
+      : blend(
+          opp && opp.killShare != null ? versus(P.killShare, opp.killShare, { prior: 0.06, gain: 1.25 }) : null,
+          versus(P.killShare, baseline.killShare, { prior: 0.06, gain: 1.25 }),
+          0.45
+        );
+
+  // Weights need not sum to 1 — weightedMean renormalises, so opting a role into
+  // kill share dilutes the other two rather than needing them restated.
   const score = weightedMean([
     { score: shareScore, weight: 0.62 },
-    { score: dpmScore, weight: 0.38 }
+    { score: dpmScore, weight: 0.38 },
+    { score: killScore, weight: killShareWeight }
   ]);
-  const detail = P.teamDamageShare == null ? null : `${Math.round(P.teamDamageShare * 100)}% team dmg`;
+  const detail =
+    P.teamDamageShare == null
+      ? null
+      : `${Math.round(P.teamDamageShare * 100)}% team dmg` +
+        (killShareWeight > 0 && P.killShare != null ? ` · ${Math.round(P.killShare * 100)}% of kills` : '');
   return { score, detail };
 }
 
@@ -355,7 +379,17 @@ function tempoComponent(P, ctx) {
   // nobody traded says nothing about whether you trade well.
   const trades = P.tradeCount > 0 ? versus(P.tradeValueWon, P.tradeValueLost, { prior: 1.2, gain: 1.4 }) : null;
 
-  const counter = opp ? versus(P.counterJungleCs, opp.counterJungleCs, { prior: 4, gain: 1.3 }) : null;
+  // Control of the enemy jungle, not just farm taken from it. Camps alone read
+  // backwards: a jungler who cleared 24 of your camps and died five times doing
+  // it scored as winning the invade war, and the jungler who killed them there
+  // scored as losing it. Takedowns and deaths are priced in camps so they can be
+  // netted against the camp count.
+  const counter =
+    opp && P.jungleControl != null && opp.jungleControl != null
+      ? versus(P.jungleControl, opp.jungleControl, { prior: 4, gain: 1.3 })
+      : opp
+        ? versus(P.counterJungleCs, opp.counterJungleCs, { prior: 4, gain: 1.3 })
+        : null;
 
   const comeback = comebackAdjustment(P.weightedLaneGold14, P.weightedLanePostSwing, { floor: 2600 });
   const base = fromDiff(P.weightedLaneGold14, scaleToBench(3200, P));
@@ -389,7 +423,13 @@ function tempoComponent(P, ctx) {
   if (P.tradeCount > 0) {
     parts.push(`traded ${P.tradeValueWon.toFixed(1)} for ${P.tradeValueLost.toFixed(1)}`);
   }
-  parts.push(`${P.counterJungleCs} enemy camps`);
+  // Say what actually went into the invade figure, or the camp count on its own
+  // reads as the whole story again.
+  parts.push(
+    `${P.counterJungleCs} enemy camps` +
+      (P.enemyJunglerTakedowns > 0 ? ` · ${P.enemyJunglerTakedowns} on their jungler` : '') +
+      (P.invadeDeaths > 0 ? ` · ${P.invadeDeaths} died deep` : '')
+  );
 
   return { score, detail: parts.join(' · ') };
 }
@@ -474,7 +514,11 @@ function scoreJungle(P, ctx) {
       component('objectives', 'Objectives', 24, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
       component('pressure', 'Gank impact', 18, pressure.score, pressure.detail),
       component('tempo', 'Tempo & map control', 17, tempo.score, tempo.detail),
-      component('combat', 'Teamfight', 12, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true }))),
+      // Jungle leans on kill share hardest of any role, because it is the only
+      // rubric with no participation component: without it, a jungler who took
+      // 40% of their team's kills is invisible outside of damage share, which
+      // understates every assassin who ever picked the role up.
+      component('combat', 'Teamfight', 12, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true, killShareWeight: 0.3 }))),
       component('economy', 'Jungle farm', 10, economy.score, economy.detail),
       component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
       component('deaths', 'Deaths', 9, ...pick(deathComponent(P, ctx, b)))
@@ -508,7 +552,10 @@ function scoreMid(P, ctx) {
   return {
     components: [
       component('lane', 'Lane', laneWeight(24, ctx), lane?.score, lane?.detail),
-      component('combat', 'Damage', 24, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.15 }))),
+      // The other assassin lane: Zed and Talon convert far less total damage
+      // into far more kills than a mage chipping a whole teamfight does. Lighter
+      // than jungle's, because Roaming already measures participation here.
+      component('combat', 'Damage', 24, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.15, killShareWeight: 0.2 }))),
       component('roam', 'Roaming', 18, roam.score, roam.detail),
       component('deaths', 'Deaths', 16, ...pick(deathComponent(P, ctx, b))),
       component('tempo', 'Wave/vision', 10, tempo.score, tempo.detail),

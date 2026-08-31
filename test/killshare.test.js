@@ -1,0 +1,98 @@
+// Damage share misses conversion from both directions: an assassin turns less
+// total damage into more kills, and a mage chipping a whole teamfight racks up
+// damage that killed nobody. Jungle felt it worst, being the only rubric with no
+// participation component at all — a jungler on 40% of their team's kills was
+// invisible.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { scoreMatch } from '../src/scoring/index.js';
+import { BASELINE } from '../src/scoring/roles.js';
+import { plainMatch } from './helpers/matchFixture.js';
+
+/**
+ * Redistributes one team's kills so `participantId` takes `share` of them,
+ * holding the team total and every player's damage fixed. Only conversion
+ * changes: same damage, different number of kills to show for it.
+ */
+function withKillShare(participantId, share, { totalKills = 40 } = {}) {
+  const match = plainMatch({ durationSeconds: 30 * 60 });
+  const team = match.info.participants.filter((p) => p.teamId === (participantId <= 5 ? 100 : 200));
+  const mine = Math.round(totalKills * share);
+  const rest = totalKills - mine;
+  const others = team.filter((p) => p.participantId !== participantId);
+  for (const p of team) {
+    p.kills = p.participantId === participantId ? mine : Math.round(rest / others.length);
+    // Hold kill participation flat so this isolates kill share from KP.
+    p.challenges.killParticipation = 0.55;
+  }
+  return scoreMatch(match, { timeline: null, trackedPuuids: [] });
+}
+
+const combatOf = (scored, key) => scored[key].components.find((c) => c.key === 'combat').score;
+
+test('the kill-share baselines sum to a whole team', () => {
+  const total = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'].reduce((s, r) => s + BASELINE[r].killShare, 0);
+  assert.ok(Math.abs(total - 1) < 1e-9, `shares of one team's kills must sum to 1, got ${total}`);
+});
+
+test('a jungler who took most of the team’s kills scores better for it', () => {
+  const quiet = withKillShare(2, 0.1);
+  const carried = withKillShare(2, 0.4);
+  assert.ok(
+    combatOf(carried, 'p2') > combatOf(quiet, 'p2') + 5,
+    `40% of the team's kills should beat 10% (${combatOf(quiet, 'p2')} -> ${combatOf(carried, 'p2')})`
+  );
+});
+
+test('it is a correction to damage share, not a replacement for it', () => {
+  // Same damage in both. If kill share were doing the heavy lifting, the gap
+  // between a 10% and a 40% share would be far wider than this.
+  const quiet = combatOf(withKillShare(2, 0.1), 'p2');
+  const carried = combatOf(withKillShare(2, 0.4), 'p2');
+  assert.ok(carried - quiet < 20, `kills must not dominate the component (moved ${(carried - quiet).toFixed(1)})`);
+});
+
+test('a jungler cannot reach a good Teamfight score on kills alone', () => {
+  // The whole model exists to get away from grading on KDA. Taking every kill
+  // on the team while doing no damage is a warning sign, not an A.
+  const match = plainMatch({ durationSeconds: 30 * 60 });
+  for (const p of match.info.participants) {
+    if (p.teamId !== 100) continue;
+    p.kills = p.participantId === 2 ? 30 : 0;
+    if (p.participantId === 2) {
+      p.challenges.teamDamagePercentage = 0.05;
+      p.challenges.damagePerMinute = 200;
+      p.totalDamageDealtToChampions = 6000;
+    }
+  }
+  const scored = scoreMatch(match, { timeline: null, trackedPuuids: [] });
+  assert.ok(combatOf(scored, 'p2') < 55, `kill-stealing to 100% must not score well (${combatOf(scored, 'p2')})`);
+});
+
+test('mid gets it lighter than jungle, and top and ADC not at all', () => {
+  const spread = (id) => combatOf(withKillShare(id, 0.4), `p${id}`) - combatOf(withKillShare(id, 0.1), `p${id}`);
+  const jungle = spread(2);
+  const mid = spread(3);
+
+  assert.ok(jungle > mid, 'jungle leans on it hardest, having no participation component');
+  assert.ok(mid > 0, 'mid is the other assassin lane');
+  // Top has solo kills in Side lane and ADC has Presence, so neither needs it.
+  assert.ok(Math.abs(spread(1)) < 0.01, 'top is unaffected');
+  assert.ok(Math.abs(spread(4)) < 0.01, 'ADC is unaffected');
+});
+
+test('the detail line reports kill share only where it counts', () => {
+  const scored = withKillShare(2, 0.4);
+  const jungle = scored.p2.components.find((c) => c.key === 'combat');
+  const adc = scored.p4.components.find((c) => c.key === 'combat');
+  assert.match(jungle.detail, /% of kills/);
+  assert.doesNotMatch(adc.detail, /% of kills/, 'no point showing a number that is not being graded');
+});
+
+test('a game with no kills at all does not crash or score zero', () => {
+  const match = plainMatch({ durationSeconds: 30 * 60 });
+  for (const p of match.info.participants) p.kills = 0;
+  const scored = scoreMatch(match, { timeline: null, trackedPuuids: [] });
+  assert.ok(Number.isFinite(scored.p2.composite));
+  assert.equal(scored.p2.context.killShare, null);
+});
