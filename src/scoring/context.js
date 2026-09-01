@@ -49,6 +49,11 @@ const TRADE_WINDOW_MS = 45000;
 // dying on an invade costs about two.
 const INVADE_TAKEDOWN_CAMPS = 3;
 const INVADE_DEATH_CAMPS = 2;
+
+// How much a commitment into one lane works off a commitment you failed to
+// answer in another. Below 1 because the two directions are not equally well
+// evidenced — see the note where it is used.
+const ANSWER_CREDIT = 0.6;
 const TURRET_VALUE = { OUTER_TURRET: 0.6, INNER_TURRET: 0.9, BASE_TURRET: 1.1, NEXUS_TURRET: 1.3 };
 
 /** Which half of the map an objective sits on. Mid trades against either side. */
@@ -315,6 +320,8 @@ export function buildContext(match, timeline = null) {
       invadeDeaths: 0,
       jungleControl: null,
       alliesUnanswered: null,
+      lanesLeftHanging: null,
+      lanesAnswered: null,
       dataQuality: hasTimeline ? 'full' : 'partial'
     };
   });
@@ -497,9 +504,14 @@ export function buildContext(match, timeline = null) {
         if (p && p.teamId !== victim.teamId) p.enemyJunglerTakedowns += 1;
       }
     }
-    // Died on the wrong side of the map: whatever you went there for, you paid
-    // for it. `isOwnHalf` is the same test the deep-death penalty already uses.
-    if (ev.position && !isOwnHalf(ev.position, victim.teamId)) victim.invadeDeaths += 1;
+    // Died on the wrong side of the map with nobody to trade with: you walked
+    // into it. The attacker condition is the one the deep-death penalty already
+    // uses, and it matters most for exactly the champions this metric is about
+    // — an assassin jungler dies in the enemy half almost every time, so
+    // counting *every* such death charges a 5-man collapse in a won teamfight
+    // at 30 minutes as a failed invade.
+    const attackers = 1 + (ev.assistingParticipantIds?.length || 0);
+    if (ev.position && attackers <= 2 && !isOwnHalf(ev.position, victim.teamId)) victim.invadeDeaths += 1;
   }
 
   for (const p of players) {
@@ -677,15 +689,30 @@ export function buildContext(match, timeline = null) {
     p.netPressure = p.pressureAgainst - p.pressureFor;
   }
 
-  // How much did a jungler leave their own lanes hanging? Sum of the net pressure
-  // their laners ate. This is the accountability the old scoring had no way to
-  // express: your top laner got camped four times, and you were never there.
+  // How much did a jungler leave their own lanes hanging? This is the
+  // accountability the old scoring had no way to express: your top laner got
+  // camped four times, and you were never there.
+  //
+  // Summing max(0, netPressure) per lane made every lane its own ledger, so a
+  // lane you *helped* contributed zero rather than working off the debt. That
+  // read the most ordinary trade in the game as a pure failure: they commit
+  // bot, you commit top, and you were charged in full for bot while top's
+  // credit vanished. Answering a gank somewhere else is still answering it.
+  //
+  // Credit offsets at less than face value, for the reason PRESSURE_CAP_FOR is
+  // smaller than PRESSURE_CAP_AGAINST: pressure taken is corroborated by deaths
+  // in the kill feed, while pressure given is largely inferred from position
+  // frames, and "my jungler stood nearby" is weaker evidence than "I died".
   for (const teamId of [100, 200]) {
     const j = junglers[teamId];
     if (!j) continue;
-    j.alliesUnanswered = players
-      .filter((p) => p.teamId === teamId && p.role !== 'JUNGLE' && p.role !== 'UNKNOWN')
-      .reduce((s, p) => s + Math.max(0, p.netPressure ?? 0), 0);
+    const lanes = players.filter((p) => p.teamId === teamId && p.role !== 'JUNGLE' && p.role !== 'UNKNOWN');
+    const debt = lanes.reduce((s, p) => s + Math.max(0, p.netPressure ?? 0), 0);
+    const credit = lanes.reduce((s, p) => s + Math.max(0, -(p.netPressure ?? 0)), 0);
+
+    j.lanesLeftHanging = debt; // before offsetting, for the detail line
+    j.lanesAnswered = credit;
+    j.alliesUnanswered = Math.max(0, debt - ANSWER_CREDIT * credit);
   }
 
   // --- epic objectives ------------------------------------------------------

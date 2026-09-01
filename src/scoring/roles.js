@@ -206,7 +206,12 @@ function deathComponent(P, ctx, baseline) {
  * legitimate (`specialist`), being excellent at one is enough; for an ADC it
  * isn't, so the weighted blend stands.
  */
-function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = false, useDpm = true, killShareWeight = 0 } = {}) {
+function combatComponent(
+  P,
+  ctx,
+  baseline,
+  { frontlineShare = 0.2, specialist = false, useDpm = true, killShareWeight = 0, lateWeight = 0 } = {}
+) {
   const opp = opponentOf(P, ctx);
   const dmgScore =
     P.teamDamageShare == null ? null : versus(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { prior: 0.03, gain: 1.25 });
@@ -238,18 +243,27 @@ function combatComponent(P, ctx, baseline, { frontlineShare = 0.2, specialist = 
           0.45
         );
 
+  // Were you in the fights that decided the game. Damage share is a whole-game
+  // figure and cannot tell a jungler who dominated skirmishes before 15 from one
+  // who mattered at the barons — and for a jungler that distinction is the job.
+  // A farming jungler cannot fake this the way they can fake a damage number.
+  const lateScore =
+    P.lateKp == null ? null : versus(P.lateKp, baseline.kp * (P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1), { prior: 0.1, gain: 1.2 });
+
   // Weights need not sum to 1 — weightedMean renormalises, so opting a role into
-  // kill share dilutes the other two rather than needing them restated.
+  // an extra term dilutes the others rather than needing them restated.
   const score = weightedMean([
     { score: shareScore, weight: 0.62 },
     { score: dpmScore, weight: 0.38 },
-    { score: killScore, weight: killShareWeight }
+    { score: killScore, weight: killShareWeight },
+    { score: lateScore, weight: lateWeight }
   ]);
   const detail =
     P.teamDamageShare == null
       ? null
       : `${Math.round(P.teamDamageShare * 100)}% team dmg` +
-        (killShareWeight > 0 && P.killShare != null ? ` · ${Math.round(P.killShare * 100)}% of kills` : '');
+        (killShareWeight > 0 && P.killShare != null ? ` · ${Math.round(P.killShare * 100)}% of kills` : '') +
+        (lateWeight > 0 && P.lateKp != null ? ` · ${Math.round(P.lateKp * 100)}% post-15` : '');
   return { score, detail };
 }
 
@@ -495,7 +509,12 @@ function scoreJungle(P, ctx) {
       { score: conversion, weight: 0.55 },
       { score: response, weight: 0.45 }
     ]),
-    detail: `${P.gankTakedowns} gank takedowns` + (P.alliesUnanswered != null ? ` · ${P.alliesUnanswered.toFixed(1)} unanswered` : '')
+    // Show the credit as well as the debt, so "3.3 unanswered" doesn't read as
+    // an accusation when two of it was worked off by committing elsewhere.
+    detail:
+      `${P.gankTakedowns} gank takedowns` +
+      (P.alliesUnanswered != null ? ` · ${P.alliesUnanswered.toFixed(1)} unanswered` : '') +
+      (P.lanesAnswered > 0.3 ? ` (${P.lanesLeftHanging.toFixed(1)} less ${P.lanesAnswered.toFixed(1)} answered)` : '')
   };
 
   // Counter-jungling has moved out to Tempo, where it belongs: taking the
@@ -511,15 +530,26 @@ function scoreJungle(P, ctx) {
 
   return {
     components: [
-      component('objectives', 'Objectives', 24, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
+      // Objectives was 24. Tempo's cross-map trades term now grades objective
+      // trading directly, which overlaps the team-control half of this, so two
+      // points move to the fights those objectives are contested in.
+      component('objectives', 'Objectives', 22, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
       component('pressure', 'Gank impact', 18, pressure.score, pressure.detail),
       component('tempo', 'Tempo & map control', 17, tempo.score, tempo.detail),
       // Jungle leans on kill share hardest of any role, because it is the only
       // rubric with no participation component: without it, a jungler who took
       // 40% of their team's kills is invisible outside of damage share, which
-      // understates every assassin who ever picked the role up.
-      component('combat', 'Teamfight', 12, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true, killShareWeight: 0.3 }))),
-      component('economy', 'Jungle farm', 10, economy.score, economy.detail),
+      // understates every assassin who ever picked the role up. `lateWeight`
+      // adds the post-15 fights, which is where a jungler's teamfight impact
+      // actually lives — and is the half a farming jungler cannot fake, which
+      // is what makes raising this weight from 12 safe.
+      component(
+        'combat',
+        'Teamfight',
+        15,
+        ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true, killShareWeight: 0.3, lateWeight: 0.35 }))
+      ),
+      component('economy', 'Jungle farm', 9, economy.score, economy.detail),
       component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
       component('deaths', 'Deaths', 9, ...pick(deathComponent(P, ctx, b)))
     ]

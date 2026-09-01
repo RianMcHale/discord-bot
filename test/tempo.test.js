@@ -211,6 +211,26 @@ test('camps bought with your life are not a win', () => {
   assert.equal(contextOf(after, 'p7').jungleControl - contextOf(before, 'p7').jungleControl, -10);
 });
 
+test('being collapsed on in a teamfight is not a failed invade', () => {
+  // An assassin jungler dies in the enemy half nearly every time, so counting
+  // every such death charges a won teamfight at their base as a botched invade.
+  const before = campedTopScenario({ durationMinutes: 32 });
+  const after = campedTopScenario({ durationMinutes: 32 });
+  for (let i = 0; i < 3; i++) {
+    const m = 17 + i * 2;
+    after.timeline.info.frames[m].events.push({
+      timestamp: m * 60000,
+      type: 'CHAMPION_KILL',
+      killerId: 7,
+      victimId: 2,
+      assistingParticipantIds: [6, 8, 9, 10], // five of them, i.e. a teamfight
+      position: { x: 12000, y: 12000 }
+    });
+  }
+  assert.equal(contextOf(after, 'p2').invadeDeaths, contextOf(before, 'p2').invadeDeaths);
+  assert.equal(contextOf(after, 'p2').jungleControl, contextOf(before, 'p2').jungleControl);
+});
+
 test('a death in your own jungle is not an invade death', () => {
   const before = campedTopScenario({ durationMinutes: 32 });
   const after = campedTopScenario({ durationMinutes: 32 });

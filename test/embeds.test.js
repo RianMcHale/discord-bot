@@ -131,7 +131,9 @@ test('detail mode adds a full breakdown per player and nothing else', () => {
   // Every component in the jungle rubric, with its weight.
   assert.match(breakdown.value, /Objectives/);
   assert.match(breakdown.value, /Tempo & map control/);
-  assert.match(breakdown.value, /24%/);
+  // Every line carries its weight. Matching the pattern rather than a specific
+  // number keeps this from failing on every deliberate reweight.
+  assert.equal((breakdown.value.match(/\*\d+%\*/g) ?? []).length, 7, 'one weight per jungle component');
 });
 
 test('warns when the timeline was unavailable', () => {
