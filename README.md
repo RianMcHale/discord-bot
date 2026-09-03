@@ -283,6 +283,19 @@ bench call.
   bad night`) plus what they're doing well. Only considers players who have hit the
   minimum, so a single bad game can't get someone benched, and it says when the call is
   too close between the bottom two to be a real verdict.
+- `/benched` — the running tally of who has actually been benched, and which roles get
+  benched most. Roles come first: each shows the count *and* the games played in that
+  role, because "ADC benched 4 times" means something different across 10 games than
+  across 5. Then each player, with the roles they were playing when it happened, so a
+  jungler who gets benched only on their off-role reads differently from one who doesn't.
+
+  Roles that were played but never benched still appear on 0 — the denominator is what
+  makes the tally mean anything. Optional `period:` for the last 7 or 30 days.
+
+  Unlike the leaderboards this has **no minimum games**: it counts things that happened
+  rather than ranking form, so hiding someone benched once because they only have two
+  games would hide the exact fact being asked for. Games with only one registered player
+  in them are excluded from the denominator — being worst of one is meaningless.
 - `/history player:<@user> count:<n>` — a player's recent scored games.
 - `/resetgames confirm:RESET` — wipe all scored game history. Keeps registered players.
   **Restricted to the bot owner**; anyone else gets a private refusal and nothing is

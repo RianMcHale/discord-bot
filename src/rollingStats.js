@@ -151,6 +151,8 @@ export function computeCareerStats(formWindow = 5, { minGames = 1, since = null 
         wins: 0,
         losses: 0,
         benched: 0,
+        benchedByRole: new Map(),
+        gamesByRole: new Map(),
         firstPlayed: null,
         lastPlayed: null
       }
@@ -158,6 +160,12 @@ export function computeCareerStats(formWindow = 5, { minGames = 1, since = null 
   );
 
   let legacyGames = 0; // games scored before the role-based rewrite
+  // Bench calls counted by the role the benched player was playing, and by the
+  // role anyone played, so "jungle gets benched a lot" can be separated from
+  // "jungle gets played a lot".
+  const benchByRole = new Map();
+  const playedByRole = new Map();
+  let benchableGames = 0;
 
   for (const game of games) {
     const entries = Object.keys(game.scores)
@@ -169,14 +177,22 @@ export function computeCareerStats(formWindow = 5, { minGames = 1, since = null 
     // Whoever finished lowest in a game they shared counts as benched for it.
     // Needs at least two tracked players — being "worst" of one is meaningless.
     const lowest = entries.length > 1 ? entries.reduce((a, b) => (b.score < a.score ? b : a)) : null;
+    if (lowest) benchableGames += 1;
 
     for (const { id, score, stored } of entries) {
       const a = acc.get(id);
+      const playedRole = stored.role || 'UNKNOWN';
       a.scores.push({ score, playedAt: game.playedAt, matchId: game.matchId, role: stored.role, win: stored.win });
       a.games.push(game);
       if (stored.win) a.wins += 1;
       else a.losses += 1;
-      if (lowest && id === lowest.id) a.benched += 1;
+      a.gamesByRole.set(playedRole, (a.gamesByRole.get(playedRole) ?? 0) + 1);
+      playedByRole.set(playedRole, (playedByRole.get(playedRole) ?? 0) + 1);
+      if (lowest && id === lowest.id) {
+        a.benched += 1;
+        a.benchedByRole.set(playedRole, (a.benchedByRole.get(playedRole) ?? 0) + 1);
+        benchByRole.set(playedRole, (benchByRole.get(playedRole) ?? 0) + 1);
+      }
       if (a.firstPlayed === null) a.firstPlayed = game.playedAt;
       a.lastPlayed = game.playedAt;
 
@@ -223,6 +239,12 @@ export function computeCareerStats(formWindow = 5, { minGames = 1, since = null 
         losses: a.losses,
         winRate: Math.round((a.wins / values.length) * 100),
         benched: a.benched,
+        // Per role, with the games played in it alongside — a bench count on its
+        // own says nothing without knowing how often they were there.
+        benchedByRole: [...a.gamesByRole.entries()]
+          .map(([role, played]) => ({ role, played, benched: a.benchedByRole.get(role) ?? 0 }))
+          .filter((r) => r.benched > 0)
+          .sort((x, y) => y.benched - x.benched || y.played - x.played),
         // Only meaningful once there's history to compare the recent window against.
         form: values.length > formWindow ? round1(form) : null,
         formDelta: values.length > formWindow ? round1(form - average) : null,
@@ -262,6 +284,14 @@ export function computeCareerStats(formWindow = 5, { minGames = 1, since = null 
     provisional: stats.filter((s) => s.gamesPlayed < minGames).sort((a, b) => b.gamesPlayed - a.gamesPlayed),
     minGames,
     squadMean: round1(squadMean),
+    // Squad-wide bench tally by role. `played` is the divisor that makes the
+    // count mean something: a role benched 4 times in 30 games is not the same
+    // problem as one benched 4 times in 5.
+    benchByRole: [...playedByRole.entries()]
+      .map(([role, played]) => ({ role, played, benched: benchByRole.get(role) ?? 0 }))
+      .sort((x, y) => y.benched - x.benched || y.played - x.played),
+    // Games where a bench call was possible at all — two or more tracked players.
+    benchableGames,
     totalGames: games.length,
     legacyGames,
     firstPlayed: games.length ? games[0].playedAt : null,
