@@ -76,10 +76,10 @@ const PRESSURE_XP = 240;
 export const PRESSURE_CAP_AGAINST = 3;
 export const PRESSURE_CAP_FOR = 2;
 
-// A lane snapshot describes a smaller share of a longer game. Laning is most of
-// a 22-minute game and a prelude to a 40-minute one, so its weight scales with
-// how long the game actually ran. Late-scaling champions were being graded as if
-// minute 14 decided the match.
+// Anything measured only during laning describes a smaller share of a longer
+// game. Laning is most of a 22-minute game and a prelude to a 40-minute one, so
+// the weight scales with how long the game actually ran. Late-scaling champions
+// were being graded as if minute 14 decided the match.
 const LANE_REFERENCE_MINUTES = 27;
 
 // How far a post-laning recovery can lift a lost lane, and how far throwing a
@@ -88,8 +88,18 @@ const LANE_REFERENCE_MINUTES = 27;
 const COMEBACK_MAX = 28;
 const THROWN_LEAD_MAX = 10;
 
-/** Scales a lane component's weight by game length. */
-export function laneWeight(base, ctx) {
+/**
+ * Scales a laning-phase component's weight by how much of the game laning was.
+ *
+ * Named for lanes because that is where it started, but it applies to anything
+ * derived only from the first fifteen minutes — the jungler's Gank impact very
+ * much included. Every input to that component (gank takedowns, lane visits,
+ * unanswered pressure) stops at LANE_PHASE_MS, so leaving it at a flat weight
+ * graded 18% of a 47-minute game on 15 minutes of it, while every laner's
+ * equivalent metric had already shrunk to 0.57x. Same metric, same window, two
+ * different rules.
+ */
+export function laningWeight(base, ctx) {
   return Math.round(base * clamp(LANE_REFERENCE_MINUTES / ctx.minutes, 0.5, 1.2));
 }
 
@@ -473,7 +483,7 @@ function scoreTop(P, ctx) {
 
   return {
     components: [
-      component('lane', 'Lane', laneWeight(25, ctx), lane?.score, lane?.detail),
+      component('lane', 'Lane', laningWeight(25, ctx), lane?.score, lane?.detail),
       component('sidelane', 'Side lane', 15, side.score, side.detail),
       component('combat', 'Teamfight', 22, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.4, specialist: true }))),
       component('deaths', 'Deaths', 20, ...pick(deathComponent(P, ctx, b))),
@@ -534,7 +544,12 @@ function scoreJungle(P, ctx) {
       // trading directly, which overlaps the team-control half of this, so two
       // points move to the fights those objectives are contested in.
       component('objectives', 'Objectives', 22, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
-      component('pressure', 'Gank impact', 18, pressure.score, pressure.detail),
+      // Scaled by game length for the same reason every laner's Lane is: it is
+      // built entirely from the first fifteen minutes. In a 47-minute game this
+      // drops to 10, because fifteen minutes of a forty-seven minute game is
+      // not 18% of what happened — and in a 22-minute stomp it rises, because
+      // then it very nearly is.
+      component('pressure', 'Gank impact', laningWeight(18, ctx), pressure.score, pressure.detail),
       component('tempo', 'Tempo & map control', 17, tempo.score, tempo.detail),
       // Jungle leans on kill share hardest of any role, because it is the only
       // rubric with no participation component: without it, a jungler who took
@@ -581,7 +596,7 @@ function scoreMid(P, ctx) {
 
   return {
     components: [
-      component('lane', 'Lane', laneWeight(24, ctx), lane?.score, lane?.detail),
+      component('lane', 'Lane', laningWeight(24, ctx), lane?.score, lane?.detail),
       // The other assassin lane: Zed and Talon convert far less total damage
       // into far more kills than a mage chipping a whole teamfight does. Lighter
       // than jungle's, because Roaming already measures participation here.
@@ -626,7 +641,7 @@ function scoreAdc(P, ctx) {
     components: [
       component('combat', 'Damage', 28, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.1 }))),
       component('deaths', 'Positioning', 20, ...pick(deathComponent(P, ctx, b))),
-      component('lane', 'Lane', laneWeight(18, ctx), lane?.score, lane?.detail),
+      component('lane', 'Lane', laningWeight(18, ctx), lane?.score, lane?.detail),
       component('economy', 'Farming', 16, economy.score, economy.detail),
       component('structures', 'Objectives', 12, structures.score, structures.detail),
       component('presence', 'Presence', 6, ...pick(participationComponent(P, ctx, b)))
@@ -685,7 +700,7 @@ function scoreSupport(P, ctx) {
       component('utility', 'Utility', 22, utility.score, utility.detail),
       component('presence', 'Participation', 22, ...pick(presence)),
       component('deaths', 'Deaths', 12, ...pick(deathComponent(P, ctx, b))),
-      component('lane', 'Bot lane', laneWeight(12, ctx), lane?.score, lane?.detail),
+      component('lane', 'Bot lane', laningWeight(12, ctx), lane?.score, lane?.detail),
       component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.3 })))
     ]
   };

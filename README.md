@@ -123,10 +123,17 @@ support who bought support items.
 
 **Scaling champions aren't graded as if minute 14 decided the game.** Two corrections:
 
-- **The lane weight scales with game length.** Laning is most of a 22-minute game and a
-  prelude to a 40-minute one, so its share of the grade shrinks as the game runs long
-  (reference point 27 minutes, clamped to 0.5×–1.2×). Everything else — damage,
+- **Laning-phase weights scale with game length.** Laning is most of a 22-minute game and
+  a prelude to a 40-minute one, so anything measured only during it shrinks as the game
+  runs long (reference point 27 minutes, clamped to 0.5×–1.2×). Everything else — damage,
   teamfights, objectives — takes up the slack automatically.
+
+  This applies to each laner's **Lane** and to the jungler's **Gank impact**, which is
+  built entirely from the first fifteen minutes: gank takedowns, lane visits and
+  unanswered pressure all stop at that mark. Leaving it flat graded 18% of a 47-minute
+  game on 15 minutes of it while every laner's equivalent metric had already shrunk to
+  0.57× — the same window under two different rules. It now runs from 22 in a short stomp
+  down to 9 in a marathon.
 - **A comeback is credited, in every role.** Gold earned *after* laning is compared
   against the same counterpart. Losing your matchup and then out-earning them for twenty
   minutes lifts the score by up to 28 points, in proportion to how much of the deficit

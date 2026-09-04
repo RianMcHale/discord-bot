@@ -20,8 +20,8 @@ const EVEN = { 1: 5000, 2: 5600, 3: 5000, 4: 5400, 5: 3400, 6: 5000, 7: 5600, 8:
  * @param topAhead  gold our top laner is up at 14; other lanes stay level.
  * @param trades  ELITE_MONSTER_KILL events replacing the fixture's own.
  */
-function game({ where = 'home', topAhead = 0, counterCamps = 4, trades = null, postSwing = 0 } = {}) {
-  const s = campedTopScenario({ durationMinutes: 32 });
+function game({ where = 'home', topAhead = 0, counterCamps = 4, trades = null, postSwing = 0, durationMinutes = 32 } = {}) {
+  const s = campedTopScenario({ durationMinutes });
 
   s.timeline.info.frames.forEach((f, m) => {
     for (const id of Object.keys(EVEN)) {
@@ -277,7 +277,10 @@ test('the jungler still gets the comeback, measured on the lanes they were in', 
 });
 
 test('the jungle weights still sum to 100 and deaths stay the lightest', () => {
-  const { jungler } = game();
+  // At 27 minutes, the reference length where laning-phase components sit at
+  // their declared weight. Away from it the total drifts by design and
+  // weightedMean renormalises — see parity.test.js.
+  const { jungler } = game({ durationMinutes: 27 });
   const total = jungler.components.reduce((s, c) => s + c.weight, 0);
   assert.equal(total, 100);
   const by = Object.fromEntries(jungler.components.map((c) => [c.key, c.weight]));
