@@ -369,6 +369,7 @@ Standard 5v5 Summoner's Rift only:
 | Ranked Solo/Duo (420), Ranked Flex (440) | ARAM (450), Arena (1700/1710) |
 | Normal Draft (400), Normal Blind (430) | URF, ARURF, One for All, Nexus Blitz, Ultimate Spellbook |
 | Quickplay (490), Clash (700) | Co-op vs AI, Custom games |
+| **Ranked 5s, and any future Rift queue** | |
 
 The rubrics assume Summoner's Rift: five distinct roles, a lane opponent playing the
 same role on the other team, a jungle, and objectives on a known timer. ARAM has none
@@ -376,6 +377,30 @@ of that, and Arena is 2v2v2v2. Scoring them produces confident-looking nonsense 
 player "Weakest: Economy 0", nine champions listed under "Enemy team" — so they're
 rejected before reaching the scorer, and remembered as rejected so they're never
 re-fetched.
+
+**The queue list is a fast path, not the whole rule.** It used to be a hard allowlist
+paired with a hard `gameMode === 'CLASSIC'` gate, which meant any queue Riot added after
+the list was written got rejected twice over. Ranked 5s is exactly that case: a
+weekend-only experimental queue that isn't in Riot's own published `queues.json`, and
+that OP.GG only labels "Featured". No allowlist could have known about it.
+
+So a queue that isn't listed is now accepted when it is *structurally* a normal Rift
+game — ten real players, five a side, four of five roles readable on both teams, a
+matched (non-custom) game, on map 11, in a mode that isn't a known rotating one. Every
+condition the allowlist was really standing in for is checked directly. Bot games stay
+out despite being Rift CLASSIC (Riot marks them with a `BOT` puuid), and so do customs,
+which can be anything at all.
+
+Rotating modes are now a **deny** list rather than requiring `CLASSIC` exactly, for the
+same reason. The residual risk is a genuinely new rotating mode whose name nobody
+recognises — narrower than rejecting every new standard queue, and it still has to pass
+the structural checks.
+
+Rejections are versioned against the rules that produced them, so **widening the rules
+re-checks games already turned away**. Without that, fixing the filter would never have
+reached the games it was written for. Rejection messages always name the raw queue id and
+mode (`queue 1234/TOURNAMENT`), because when a brand-new queue is refused that message is
+the only evidence of what it was.
 
 A game also has to have been played **on the same team**. Registered players split
 across both sides isn't a squad game: teammates would be listed as enemies and the

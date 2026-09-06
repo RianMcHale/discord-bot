@@ -71,3 +71,31 @@ test('gamesForPlayer returns most recent first and respects the limit', () => {
   assert.deepEqual(recent.map((g) => g.matchId), ['G4', 'G3', 'G2']);
   assert.equal(db.gamesForPlayer('u1').length, 5, 'no limit returns everything');
 });
+
+// Widening which queues are supported used to leave every game already turned
+// away permanently skipped, so a fix to the queue filter never reached the games
+// it was written for.
+test('a rejection only stands while the rules that produced it still hold', () => {
+  db.markSkipped('M1', 'not a tracked queue', 6, 'v1:400,420');
+  assert.equal(db.isSkipped('M1', 6, 'v1:400,420'), true, 'same rules, still skipped');
+  assert.equal(db.isSkipped('M1', 6, 'v2:400,420,9999'), false, 'rules widened, re-check it');
+});
+
+test('rejections written before rules were versioned are re-checked once', () => {
+  const state = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+  state.skipped.LEGACY = { reason: 'old rejection', rosterCount: 6 };
+  fs.writeFileSync(dbPath, JSON.stringify(state));
+  assert.equal(db.isSkipped('LEGACY', 6, 'v2:400,420'), false);
+});
+
+test('the roster guard still applies independently of the rules guard', () => {
+  db.markSkipped('M2', 'only one tracked player', 4, 'v2:400,420');
+  assert.equal(db.isSkipped('M2', 4, 'v2:400,420'), true);
+  assert.equal(db.isSkipped('M2', 5, 'v2:400,420'), false, 'someone registered, so re-check');
+});
+
+test('bulk rejections carry the rules key too', () => {
+  db.markManySkipped([{ matchId: 'M3', reason: 'x' }, { matchId: 'M4', reason: 'y' }], 6, 'v2:400,420');
+  assert.equal(db.isSkipped('M3', 6, 'v2:400,420'), true);
+  assert.equal(db.isSkipped('M4', 6, 'v9:nope'), false);
+});

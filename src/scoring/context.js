@@ -114,7 +114,7 @@ function zoneForRole(role) {
   return null; // jungle roams everywhere
 }
 
-function normaliseRole(p) {
+export function normaliseRole(p) {
   for (const candidate of [p.teamPosition, p.individualPosition, p.lane]) {
     if (ROLES.includes(candidate)) return candidate;
   }

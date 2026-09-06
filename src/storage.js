@@ -129,19 +129,25 @@ export const db = {
   skippedCount() {
     return Object.keys(read().skipped).length;
   },
-  isSkipped(matchId, rosterCount) {
+  // `rulesKey` guards it the same way: a rejection only stands while the rules
+  // that produced it still hold. Widening which queues are supported used to
+  // leave every game already turned away permanently skipped, so the fix never
+  // reached the games it was written for. Entries written before this existed
+  // have no key and are re-checked once.
+  isSkipped(matchId, rosterCount, rulesKey = null) {
     const entry = read().skipped[matchId];
-    return Boolean(entry) && entry.rosterCount === rosterCount;
+    if (!entry || entry.rosterCount !== rosterCount) return false;
+    return rulesKey === null || entry.rulesKey === rulesKey;
   },
-  markSkipped(matchId, reason, rosterCount) {
+  markSkipped(matchId, reason, rosterCount, rulesKey = null) {
     const state = read();
-    state.skipped[matchId] = { reason, rosterCount };
+    state.skipped[matchId] = { reason, rosterCount, rulesKey };
     write(state);
   },
-  markManySkipped(entries, rosterCount) {
+  markManySkipped(entries, rosterCount, rulesKey = null) {
     if (entries.length === 0) return;
     const state = read();
-    for (const { matchId, reason } of entries) state.skipped[matchId] = { reason, rosterCount };
+    for (const { matchId, reason } of entries) state.skipped[matchId] = { reason, rosterCount, rulesKey };
     write(state);
   },
 

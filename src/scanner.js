@@ -12,7 +12,7 @@
 import { riot } from './riotApi.js';
 import { db } from './storage.js';
 import { scoreMatch } from './scoring/index.js';
-import { isSupportedQueue, unsupportedReason } from './queues.js';
+import { isSupportedQueue, unsupportedReason, queueRulesKey } from './queues.js';
 import { enemySummary } from './embeds.js';
 
 /**
@@ -95,6 +95,8 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
   }
 
   const rosterCount = players.length;
+  // Rejections only stand while the rules that produced them still hold.
+  const rulesKey = queueRulesKey();
   const nameByDiscordId = Object.fromEntries(players.map((p) => [p.discordId, p.riotGameName]));
 
   const { ids: candidateIds, errors: apiErrors } = await collectCandidateIds(api, players, lookback);
@@ -103,7 +105,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
 
   // Anything already scored, or already rejected under this same roster, costs
   // nothing — it never reaches the Riot API again.
-  const fresh = candidateIds.filter((id) => !db.hasGame(id) && !db.isSkipped(id, rosterCount));
+  const fresh = candidateIds.filter((id) => !db.hasGame(id) && !db.isSkipped(id, rosterCount, rulesKey));
   const cached = candidateIds.length - fresh.length;
 
   const qualifying = [];
@@ -148,7 +150,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
     });
   }
 
-  db.markManySkipped(newlySkipped, rosterCount);
+  db.markManySkipped(newlySkipped, rosterCount, rulesKey);
 
   qualifying.sort((a, b) => (order === 'newest' ? b.timestamp - a.timestamp : a.timestamp - b.timestamp));
   const toScore = qualifying.slice(0, maxToScore);
@@ -175,7 +177,7 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
     } catch (err) {
       // Remakes and other unscorable games are permanently unscorable — cache the
       // rejection rather than re-fetching them on every future scan.
-      db.markSkipped(matchId, err.message, rosterCount);
+      db.markSkipped(matchId, err.message, rosterCount, rulesKey);
       continue;
     }
 
