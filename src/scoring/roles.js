@@ -29,7 +29,10 @@ import { versus, fromDiff, weightedMean, blend, component, clamp, safeDiv } from
 // to set the kill up.
 export const BASELINE = {
   TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
-  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
+  // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
+  // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
+  // a jungler who kept farming between plays.
+  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
   MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
   BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
   UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4 },
@@ -451,7 +454,7 @@ function tempoComponent(P, ctx) {
   // Say what actually went into the invade figure, or the camp count on its own
   // reads as the whole story again.
   parts.push(
-    `${P.counterJungleCs} enemy camps` +
+    `${P.counterJungleCs} off their jungle` +
       (P.enemyJunglerTakedowns > 0 ? ` · ${P.enemyJunglerTakedowns} on their jungler` : '') +
       (P.invadeDeaths > 0 ? ` · ${P.invadeDeaths} died deep` : '')
   );
@@ -531,12 +534,35 @@ function scoreJungle(P, ctx) {
   // Counter-jungling has moved out to Tempo, where it belongs: taking the
   // enemy's camps is a tempo act, not a farming one. What is left here is pure
   // efficiency — did you clear your own jungle as fast as they cleared theirs.
+  // The only component that used to be graded purely head-to-head, with no
+  // baseline anchor — so a good clear scored badly against a Karthus or a
+  // Shyvana and a poor one scored well against a Rammus, neither of which says
+  // anything about the jungler. Every other component in the model already
+  // blends the counterpart against the role baseline; this now does too.
+  const clearBar = scaleToBench(b.jungleCs14, P);
   const economy = {
     score: weightedMean([
-      { score: opp ? versus(P.jungleCs14, opp.jungleCs14, { prior: 8, gain: 1.4 }) : null, weight: 0.55 },
-      { score: opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null, weight: 0.45 }
+      {
+        score: blend(
+          opp ? versus(P.jungleCs14, opp.jungleCs14, { prior: 8, gain: 1.4 }) : null,
+          versus(P.jungleCs14, clearBar, { prior: 8, gain: 1.4 }),
+          0.55
+        ),
+        weight: 0.55
+      },
+      {
+        score: blend(
+          opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null,
+          versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 }),
+          0.55
+        ),
+        weight: 0.45
+      }
     ]),
-    detail: `${P.csPerMin.toFixed(1)} cs/min · ${P.jungleCs14} camps @${P.benchMinute ?? 14}`
+    // "camps" was wrong and made the number look absurd: Riot counts individual
+    // monsters (its own field is enemyJungleMonsterKills), and a full six-camp
+    // clear is about eighteen of them.
+    detail: `${P.csPerMin.toFixed(1)} cs/min · ${P.jungleCs14} jg cs @${P.benchMinute ?? 14}`
   };
 
   return {

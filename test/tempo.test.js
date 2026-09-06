@@ -299,3 +299,39 @@ test('no timeline means tempo drops out rather than scoring zero', () => {
   // something to say; it just must not be reporting lane state it cannot see.
   assert.doesNotMatch(tempo.detail ?? '', /lanes/);
 });
+
+// Jungle farm was the only component in the model graded purely head-to-head,
+// with no baseline anchor — so a good clear scored badly against a Karthus and
+// a poor one scored well against a Rammus.
+test('a good clear is not graded solely on who the enemy jungler picked', () => {
+  const withEnemyOn = (theirs) => {
+    const s = campedTopScenario({ durationMinutes: 32 });
+    // Ours clears well; theirs varies.
+    s.timeline.info.frames.forEach((f, m) => {
+      if (m > 14) return;
+      f.participantFrames['2'].jungleMinionsKilled = Math.round((100 / 14) * m);
+      f.participantFrames['7'].jungleMinionsKilled = Math.round((theirs / 14) * m);
+    });
+    const scored = scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] });
+    return scored.p2.components.find((c) => c.key === 'economy').score;
+  };
+
+  const vsFastClearer = withEnemyOn(135);
+  const vsSlowClearer = withEnemyOn(55);
+
+  // The matchup still moves it — out-farming your counterpart is a real result —
+  // but a solid clear cannot be dragged to a failing score by champion select.
+  assert.ok(vsFastClearer > 40, `a 100-cs clear should not read as a bad one (${vsFastClearer})`);
+  assert.ok(vsSlowClearer > vsFastClearer, 'out-farming them still counts for something');
+  assert.ok(vsSlowClearer - vsFastClearer < 25, 'but the opponent alone must not decide the component');
+});
+
+test('jungle cs is labelled as cs, not as camps', () => {
+  // Riot counts individual monsters — its own field is enemyJungleMonsterKills —
+  // and a full six-camp clear is about eighteen of them. Calling 100 monsters
+  // "100 camps" made a normal clear read as absurd.
+  const { jungler } = game();
+  const farm = jungler.components.find((c) => c.key === 'economy');
+  assert.match(farm.detail, /jg cs @/);
+  assert.doesNotMatch(farm.detail, /camps/);
+});

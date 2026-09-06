@@ -114,6 +114,17 @@ And Riot's `dragonTakedowns` challenge counts an Elder as just another dragon, s
 personal tally valued Elder at 1 while the team tally valued it at 2 — anyone who took
 Elder had their objective share understated for it.
 
+**Every component is anchored to a role baseline, not only to your counterpart.** Jungle
+farm was the last one graded purely head-to-head, which meant a good clear scored badly
+against a Karthus or Shyvana and a poor one scored well against a Rammus — neither of
+which says anything about the jungler. It now blends the counterpart comparison with the
+role baseline, the way deaths, vision, objectives and damage already did. Out-farming your
+opposite number still counts; champion select no longer decides the component on its own.
+
+Also: jungle CS is **monsters, not camps** — Riot's own field is `enemyJungleMonsterKills`,
+and a full six-camp clear is about eighteen of them. The card used to say "100 camps @14",
+which made an ordinary five-clear game read as absurd. It now says `100 jg cs @14`.
+
 **Kill share corrects damage share, for the roles where damage share lies.** Damage share
 misses conversion from both directions: an assassin turns less total damage into more
 kills, and a mage chipping a whole teamfight racks up damage that killed nobody. Jungle
