@@ -33,6 +33,15 @@ const EPIC_WEIGHT = {
   ATAKHAN: 1.5
 };
 
+// Dragon Soul was worth nothing. The fourth drake granted a permanent teamwide
+// buff that usually decides the game, and counted exactly the same as the first
+// one — so a team that took Soul and a team that took four drakes across two
+// separate soul races scored identically. The bonus is on top of the drake's own
+// weight, making the soul-securing dragon the single biggest objective on the
+// board: more than Baron, more than Elder, which is what it is.
+const SOUL_DRAGONS = 4;
+const SOUL_BONUS = 2.5;
+
 function epicWeight(ev) {
   if (ev.monsterType === 'DRAGON' && ev.monsterSubType === 'ELDER_DRAGON') return EPIC_WEIGHT.ELDER_DRAGON;
   return EPIC_WEIGHT[ev.monsterType] ?? 1;
@@ -306,9 +315,13 @@ export function buildContext(match, timeline = null) {
       deathTags: null,
       lateKp: null,
       epicCredits: 0,
+      elderCredits: 0,
       epicShare: null,
       teamEpicWeighted: null,
       teamEpicControl: null,
+      tookSoul: false,
+      concededSoul: false,
+      drakesTaken: 0,
       teamLaneGold14: null,
       weightedLaneGold14: null,
       weightedLanePostSwing: null,
@@ -349,8 +362,8 @@ export function buildContext(match, timeline = null) {
   }
 
   const teams = {
-    100: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0 },
-    200: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0 }
+    100: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null },
+    200: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null }
   };
   for (const p of players) teams[p.teamId].kills += p.kills;
 
@@ -716,26 +729,61 @@ export function buildContext(match, timeline = null) {
   }
 
   // --- epic objectives ------------------------------------------------------
+  // `events` is built by flattening frames in order, so this walks the game
+  // chronologically — which the soul count depends on.
+  const drakes = { 100: 0, 200: 0 };
   for (const ev of events) {
     if (ev.type !== 'ELITE_MONSTER_KILL') continue;
     const killer = byId.get(ev.killerId);
     const teamId = ev.killerTeamId || killer?.teamId;
     if (!teamId || !teams[teamId]) continue;
-    const w = epicWeight(ev);
+
+    let w = epicWeight(ev);
+    const isElder = ev.monsterType === 'DRAGON' && ev.monsterSubType === 'ELDER_DRAGON';
+    // Elders spawn only after a soul has been taken and never count toward one.
+    if (ev.monsterType === 'DRAGON' && !isElder) {
+      drakes[teamId] += 1;
+      if (drakes[teamId] === SOUL_DRAGONS) {
+        w += SOUL_BONUS;
+        teams[teamId].tookSoul = true;
+        teams[teamId].soulAt = ev.timestamp;
+      }
+    }
+
     teams[teamId].epicWeighted += w;
     const credited = new Set([ev.killerId, ...(ev.assistingParticipantIds || [])]);
     for (const id of credited) {
       const p = byId.get(id);
-      if (p && p.teamId === teamId) p.epicCredits += w;
+      if (!p || p.teamId !== teamId) continue;
+      p.epicCredits += w;
+      // Riot's `dragonTakedowns` challenge counts an Elder as just another
+      // dragon, so personalEpics valued it at 1 while the team tally valued it
+      // at 2. Anyone who took Elder had their share of the team's objectives
+      // understated for it. Track the shortfall to add back below.
+      if (isElder) p.elderCredits += EPIC_WEIGHT.ELDER_DRAGON - EPIC_WEIGHT.DRAGON;
     }
   }
   for (const p of players) {
-    const own = teams[p.teamId].epicWeighted;
-    const other = teams[p.teamId === 100 ? 200 : 100].epicWeighted;
+    const mine = teams[p.teamId];
+    const them = teams[p.teamId === 100 ? 200 : 100];
+    const own = mine.epicWeighted;
+    const other = them.epicWeighted;
     p.teamEpicWeighted = own;
+    p.tookSoul = mine.tookSoul === true;
+    p.concededSoul = them.tookSoul === true;
+    p.drakesTaken = drakes[p.teamId];
+
     // Prefer the challenges-derived personal count; fall back to timeline credits
     // when the challenges block is missing them entirely.
-    const credits = p.personalEpics > 0 ? p.personalEpics : p.epicCredits;
+    //
+    // The challenges figure has no idea about Soul, so scale it by how much of
+    // the team's weighted total the soul bonus represents. Without this a
+    // jungler on 91% of their team's objectives reads as 91% of a total that
+    // grew underneath them, and taking Soul *lowers* their share.
+    const base = p.personalEpics > 0 ? p.personalEpics + p.elderCredits : p.epicCredits;
+    const soulShare = mine.tookSoul && own > SOUL_BONUS ? SOUL_BONUS * (base / (own - SOUL_BONUS)) : 0;
+    const credits = base + soulShare;
+
     p.epicShare = own > 0 ? clamp(credits / own, 0, 1) : null;
     p.teamEpicControl = own + other > 0 ? own / (own + other) : null;
   }

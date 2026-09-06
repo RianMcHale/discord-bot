@@ -310,10 +310,11 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3 } = {}) {
   ]);
   if (P.epicSteals > 0) score = clamp(score + Math.min(P.epicSteals, 2) * 3, 0, 100);
 
+  const soul = P.tookSoul ? ' · soul' : P.concededSoul ? ' · conceded soul' : '';
   const detail =
     P.teamEpicControl == null
       ? `${P.personalEpics.toFixed(1)} objective takedowns`
-      : `${Math.round((P.epicShare ?? 0) * 100)}% of team's · team held ${Math.round(P.teamEpicControl * 100)}%`;
+      : `${Math.round((P.epicShare ?? 0) * 100)}% of team's · team held ${Math.round(P.teamEpicControl * 100)}%${soul}`;
   return { score, detail };
 }
 

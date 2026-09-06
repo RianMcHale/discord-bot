@@ -99,6 +99,21 @@ Net pressure then:
 - **credits the enemy jungler** who created the pressure, and **debits your own jungler**
   for every commitment they left unanswered.
 
+**Dragon Soul is weighted as the game-deciding objective it is.** Objectives are valued
+rather than counted — a void grub is worth about a third of a drake, Baron 1.5, Elder 2 —
+but the fourth drake counted exactly the same as the first, so a team that took Soul and a
+team that took four drakes across two failed soul races scored identically. The
+soul-securing dragon now carries a bonus on top of its own weight, making it the single
+biggest objective on the board: more than Baron, more than Elder. Elder never counts
+toward it, since Elder only spawns once a soul is already taken. The card says `· soul`
+or `· conceded soul`.
+
+Two related corrections came with it. A player's personal share is scaled alongside the
+bonus, so taking Soul can't *shrink* your share of a team total that grew underneath you.
+And Riot's `dragonTakedowns` challenge counts an Elder as just another dragon, so a
+personal tally valued Elder at 1 while the team tally valued it at 2 — anyone who took
+Elder had their objective share understated for it.
+
 **Kill share corrects damage share, for the roles where damage share lies.** Damage share
 misses conversion from both directions: an assassin turns less total damage into more
 kills, and a mage chipping a whole teamfight racks up damage that killed nobody. Jungle
