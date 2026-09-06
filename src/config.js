@@ -39,11 +39,25 @@ export const config = {
   // Comma-separated queue ids to score. Unset uses the standard 5v5 Summoner's
   // Rift set in queues.js — see there for why ARAM, Arena and the rotating modes
   // are excluded rather than scored badly.
+  //
+  // This is an *accept* list, not a restriction: a queue that isn't on it is
+  // still scored when it is structurally a normal Rift game, which is what lets
+  // queues Riot adds later work without a code change. Use BLOCKED_QUEUES to
+  // actually exclude something.
   allowedQueues: process.env.ALLOWED_QUEUES
     ? process.env.ALLOWED_QUEUES.split(',')
         .map((q) => parseInt(q.trim(), 10))
         .filter(Number.isFinite)
     : null,
+
+  // Comma-separated queue ids to never score, whatever else says otherwise.
+  // The only way to exclude a queue that would otherwise look like a normal
+  // Rift game — Swiftplay, say, whose pacing makes the baselines misleading.
+  blockedQueues: process.env.BLOCKED_QUEUES
+    ? process.env.BLOCKED_QUEUES.split(',')
+        .map((q) => parseInt(q.trim(), 10))
+        .filter(Number.isFinite)
+    : [],
 
   // Channel the watcher posts finished games to. Unset = watcher disabled and
   // /fetchgame stays manual.

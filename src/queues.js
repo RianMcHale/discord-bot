@@ -85,6 +85,7 @@ function isRotatingMode(gameMode) {
 }
 
 export const allowedQueues = () => config.allowedQueues ?? DEFAULT_ALLOWED_QUEUES;
+export const blockedQueues = () => config.blockedQueues ?? [];
 
 /**
  * Is this a normal 5v5 Summoner's Rift game that simply isn't on the allowlist?
@@ -140,6 +141,10 @@ function looksLikeStandardRift(info) {
  * itself only labels "Featured", ended up unfetchable.
  */
 export function isSupportedQueue(info) {
+  // Checked first, and it wins outright: since an unlisted queue now falls
+  // through to a structural check, leaving a queue off ALLOWED_QUEUES no longer
+  // excludes it. BLOCKED_QUEUES is the only thing that does.
+  if (blockedQueues().includes(info.queueId)) return false;
   if (info.mapId !== undefined && info.mapId !== 11) return false;
   if (isRotatingMode(info.gameMode)) return false;
   // No gameMode condition here: the rotating-mode check above already covers it,
@@ -154,7 +159,8 @@ export function isSupportedQueue(info) {
  * ALLOWED_QUEUES invalidates old rejections without needing a code change too.
  */
 export function queueRulesKey() {
-  return `v${RULES_VERSION}:${[...allowedQueues()].sort((a, b) => a - b).join(',')}`;
+  const sort = (xs) => [...xs].sort((a, b) => a - b).join(',');
+  return `v${RULES_VERSION}:${sort(allowedQueues())}:-${sort(blockedQueues())}`;
 }
 
 /**
@@ -166,6 +172,7 @@ export function queueRulesKey() {
  */
 export function unsupportedReason(info) {
   const id = `queue ${info.queueId}${info.gameMode ? `/${info.gameMode}` : ''}`;
+  if (blockedQueues().includes(info.queueId)) return `${queueName(info.queueId)} — blocked by BLOCKED_QUEUES (${id})`;
   if (info.mapId !== undefined && info.mapId !== 11) return `${queueName(info.queueId)} — not Summoner's Rift (${id}, map ${info.mapId})`;
   if (isRotatingMode(info.gameMode)) return `${queueName(info.queueId)} — rotating mode (${id})`;
   if (Array.isArray(info.participants) && info.participants.some((p) => !p.puuid || p.puuid === 'BOT')) {

@@ -131,3 +131,35 @@ test('the rules key changes when the rules do', () => {
   assert.match(before, /^v\d+:/, 'carries a version');
   assert.match(before, /420/, 'and the allowlist it was made under');
 });
+
+// Leaving a queue off ALLOWED_QUEUES stopped excluding it the moment unlisted
+// queues began falling through to a structural check. BLOCKED_QUEUES is what
+// exclusion means now, and a config that silently stops restricting is worse
+// than one that never restricted.
+test('BLOCKED_QUEUES excludes a queue that would otherwise pass', async () => {
+  const { config } = await import('../src/config.js');
+  const original = config.blockedQueues;
+  try {
+    config.blockedQueues = [9999];
+    assert.equal(isSupportedQueue(riftLobby({ queueId: 9999 })), false);
+    assert.match(unsupportedReason(riftLobby({ queueId: 9999 })), /BLOCKED_QUEUES/);
+    // And it beats the allowlist, not just the structural fallback.
+    config.blockedQueues = [420];
+    assert.equal(isSupportedQueue(info({ queueId: 420 })), false, 'blocking wins over allowing');
+  } finally {
+    config.blockedQueues = original;
+  }
+});
+
+test('changing the block list re-checks games rejected under the old one', async () => {
+  const { config } = await import('../src/config.js');
+  const original = config.blockedQueues;
+  try {
+    config.blockedQueues = [];
+    const before = queueRulesKey();
+    config.blockedQueues = [480];
+    assert.notEqual(queueRulesKey(), before);
+  } finally {
+    config.blockedQueues = original;
+  }
+});

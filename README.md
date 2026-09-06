@@ -406,9 +406,22 @@ A game also has to have been played **on the same team**. Registered players spl
 across both sides isn't a squad game: teammates would be listed as enemies and the
 bench call would compare across the two teams.
 
-Override the list with `ALLOWED_QUEUES` if you want something else — e.g.
-`ALLOWED_QUEUES=420,440` for ranked only, or add `480` if you play Swiftplay (excluded
-by default because its accelerated economy skews the gold-at-14 baselines).
+`ALLOWED_QUEUES` adds queues to the accept list — e.g. `ALLOWED_QUEUES=420,440,480` to
+include Swiftplay. **It does not restrict.** Since an unlisted queue now falls through to
+the structural check, leaving something *off* the list no longer excludes it, and a
+config that quietly stops restricting is worse than one that never did.
+
+`BLOCKED_QUEUES` is what exclusion means now. It is checked first and beats everything,
+including the accept list:
+
+```
+BLOCKED_QUEUES=480,490    # never score Swiftplay or Quickplay
+```
+
+Swiftplay (480) is the usual candidate: it is a normal-looking Rift game, so the
+structural check accepts it, but its accelerated economy skews the gold-at-14 baselines
+that every lane grade is built on. Changing either variable re-checks games rejected
+under the previous setting.
 
 Games from unsupported queues that were scored before this filter existed are removed
 automatically on the next startup, and the count is logged.
