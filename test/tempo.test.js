@@ -286,7 +286,15 @@ test('the jungle weights still sum to 100 and deaths stay the lightest', () => {
   const by = Object.fromEntries(jungler.components.map((c) => [c.key, c.weight]));
   assert.ok(by.deaths < by.tempo);
   assert.ok(by.deaths < by.objectives);
-  assert.ok(by.pressure > by.tempo, 'what the jungler personally did outranks the map state');
+
+  // What the jungler personally did still outweighs the state of the map, but
+  // it is now Teamfight carrying that rather than Gank impact — which is the
+  // point of the reweight, since Gank impact can only ever see the first
+  // fifteen minutes.
+  assert.ok(by.combat > by.tempo, 'fighting outranks map state');
+  assert.ok(by.combat > by.objectives, 'and is the single heaviest component');
+  assert.ok(by.combat + by.deaths < by.objectives + by.tempo + by.pressure + by.economy,
+    'but macro is still most of a jungler’s grade — that premise has not changed');
 });
 
 test('no timeline means tempo drops out rather than scoring zero', () => {

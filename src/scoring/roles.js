@@ -567,17 +567,24 @@ function scoreJungle(P, ctx) {
 
   return {
     components: [
-      // Objectives was 24. Tempo's cross-map trades term now grades objective
-      // trading directly, which overlaps the team-control half of this, so two
-      // points move to the fights those objectives are contested in.
-      component('objectives', 'Objectives', 22, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
+      // Jungle was the only non-support role where fighting was a *minority* of
+      // the grade: 24% against 46% for top, 43% for mid and 51% for the ADC. The
+      // premise that a jungler is judged on macro is right, but taken that far it
+      // meant a genuinely dominant fighting game moved the composite by 1.4
+      // points where the same game as mid moved it 3.4. Macro is still most of
+      // the grade at 69%; fighting is no longer an outlier at 31%.
+      //
+      // Safe because the farming-jungler fixture barely moves (30.0 -> 30.5): a
+      // jungler who contests nothing scores badly on Teamfight too, and post-15
+      // participation is the half of it they cannot fake.
+      component('objectives', 'Objectives', 20, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.5 }))),
       // Scaled by game length for the same reason every laner's Lane is: it is
       // built entirely from the first fifteen minutes. In a 47-minute game this
       // drops to 10, because fifteen minutes of a forty-seven minute game is
       // not 18% of what happened — and in a 22-minute stomp it rises, because
       // then it very nearly is.
-      component('pressure', 'Gank impact', laningWeight(18, ctx), pressure.score, pressure.detail),
-      component('tempo', 'Tempo & map control', 17, tempo.score, tempo.detail),
+      component('pressure', 'Gank impact', laningWeight(16, ctx), pressure.score, pressure.detail),
+      component('tempo', 'Tempo & map control', 16, tempo.score, tempo.detail),
       // Jungle leans on kill share hardest of any role, because it is the only
       // rubric with no participation component: without it, a jungler who took
       // 40% of their team's kills is invisible outside of damage share, which
@@ -588,10 +595,10 @@ function scoreJungle(P, ctx) {
       component(
         'combat',
         'Teamfight',
-        15,
+        22,
         ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.35, specialist: true, killShareWeight: 0.3, lateWeight: 0.35 }))
       ),
-      component('economy', 'Jungle farm', 9, economy.score, economy.detail),
+      component('economy', 'Jungle farm', 7, economy.score, economy.detail),
       component('vision', 'Vision', 10, ...pick(visionComponent(P, ctx, b))),
       component('deaths', 'Deaths', 9, ...pick(deathComponent(P, ctx, b)))
     ]

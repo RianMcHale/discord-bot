@@ -23,26 +23,39 @@ them honestly.
 |---|---|---|---|---|---|
 | Lane @14 (gold + xp vs counterpart) | 25 | — | 24 | 18 | 12 |
 | Side pressure (plates, turret dmg, solo kills) | 15 | — | — | — | — |
-| Teamfight / damage | 22 | 12 | 24 | 28 | — |
+| Teamfight / damage | 22 | 22 | 24 | 28 | — |
 | Death discipline | 20 | 9 | 16 | 20 | 12 |
-| Objectives | 10 | 24 | 8 | 12 | 8 |
+| Objectives | 10 | 20 | 8 | 12 | 8 |
 | Map presence / roam | 8 | — | 18 | 6 | 22 |
-| Gank impact & counter-response | — | 18 | — | — | — |
-| Tempo & map control | — | 17 | — | — | — |
-| Jungle farm (own camps) | — | 10 | — | — | — |
+| Gank impact & counter-response | — | 16* | — | — | — |
+| Tempo & map control | — | 16 | — | — | — |
+| Jungle farm (own camps) | — | 7 | — | — | — |
 | Vision | — | 10 | (in tempo) | — | 24 |
 | Farm & gold | — | — | 10 | 16 | — |
 | Engage & peel (CC, heal/shield, saves) | — | — | — | — | 22 |
 
 The composite of those weights **is** the score — nothing is blended in on top of it.
+`*` scales with game length; see *laning-phase weights* below.
 
 ### Why it's built this way
 
 **A low-impact jungler has nowhere to hide.** Deaths are the *lightest* weight in the
-jungle rubric (9%) and objective control, gank impact and tempo are the heaviest (59%
+jungle rubric (9%) and objective control, gank impact and tempo are the heaviest (52%
 combined). A jungler who farms safely to 3/2/9, contests nothing and lets every lane fall
 behind gets graded on exactly that. Under the old model that same game scored *well*,
 because low deaths were 35% of the composite for everyone.
+
+**But a high-impact jungler has to be able to score, too.** Taken too far, the point above
+produces the opposite failure. Jungle used to be the only non-support role where fighting
+was a *minority* of the grade — 24%, against 46% for top, 43% for mid and 51% for the ADC —
+so an identical dominant fighting game moved a jungler's composite by 1.4 points where it
+moved a mid laner's by 3.4. Teamfight is now 22, putting jungle at 33% fighting and 67%
+macro: still the most macro-weighted role of the four, no longer an outlier.
+
+That's safe to do because of what Teamfight is made of. It isn't a damage number — it's
+damage share, kill share, *and* post-15 kill participation, and the farming-jungler fixture
+moves only from 30.0 to 30.5 under the reweight. A jungler who contests nothing scores
+badly on Teamfight too, and post-15 participation is the half of it they cannot fake.
 
 **A jungler is graded on the map they were actually on.** *Tempo & map control* replaced a
 flat "how were my four lanes doing at 14 minutes", which was the only component in any
