@@ -21,6 +21,12 @@ export const data = new SlashCommandBuilder()
       .setDescription('Only clear the N most recent games, for re-scoring after a scoring change')
       .setMinValue(1)
       .setRequired(false)
+  )
+  .addBooleanOption((opt) =>
+    opt
+      .setName('duplicates')
+      .setDescription('Remove only games stored more than once, keeping one copy of each')
+      .setRequired(false)
   );
 
 export async function execute(interaction) {
@@ -44,10 +50,49 @@ export async function execute(interaction) {
   }
 
   const last = interaction.options.getInteger('last');
+  const duplicatesOnly = interaction.options.getBoolean('duplicates') ?? false;
   const stored = db.allGames(); // ascending by playedAt
 
   if (stored.length === 0) {
     await interaction.reply({ content: 'Nothing to clear — there are no scored games stored.' });
+    return;
+  }
+
+  // --- duplicates only ------------------------------------------------------
+  if (duplicatesOnly) {
+    const groups = db.duplicateGroups();
+    if (groups.length === 0) {
+      await interaction.reply({
+        content:
+          `No duplicates among the **${stored.length}** stored game${stored.length === 1 ? '' : 's'}. ` +
+          'Games are matched on Riot’s numeric game id, falling back to who played and when for older rows.'
+      });
+      return;
+    }
+
+    const doomed = groups.flatMap((g) => g.remove);
+    const removed = db.removeGames(doomed.map((g) => g.matchId));
+
+    // Name what was merged into what: a silent count of deletions on the one
+    // command that cannot be undone is not enough to check the call was right.
+    const lines = groups.slice(0, 10).map((g) => {
+      const dropped = g.remove.map((r) => `\`${r.matchId}\``).join(', ');
+      return `-# ${dayStamp(g.keep.playedAt)} — kept \`${g.keep.matchId}\`, removed ${dropped}`;
+    });
+    if (groups.length > 10) lines.push(`-# …and ${groups.length - 10} more group${groups.length - 10 === 1 ? '' : 's'}.`);
+
+    await interaction.reply({
+      content: [
+        `✅ Removed **${removed}** duplicate${removed === 1 ? '' : 's'} across **${groups.length}** ` +
+          `game${groups.length === 1 ? '' : 's'}, keeping one copy of each. ` +
+          `**${stored.length - removed}** game${stored.length - removed === 1 ? '' : 's'} remain.`,
+        '',
+        ...lines,
+        '',
+        '-# New scans now check Riot’s numeric game id as well as the match id, so a game ' +
+          'handed back under two ids is only scored once. This should not recur.'
+      ].join('\n')
+    });
     return;
   }
 

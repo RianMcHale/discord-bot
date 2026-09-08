@@ -349,6 +349,12 @@ bench call.
   nothing from a wrong guess. Set `ADMIN_USER_IDS` (comma-separated Discord user ids) to
   change who can run it — it defaults to the owner, so no config is needed.
 
+  `duplicates:true` removes only games stored more than once, keeping one copy of each —
+  the best-quality copy, then the lowest match id so the choice is stable. The reply names
+  what was kept and what was dropped in each group, since this is the one command that
+  can't be undone. Games are matched on Riot's numeric `gameId`; rows written before that
+  was stored fall back to when the game was played and who played it.
+
   `last:<n>` clears only the **n most recent** games instead of everything, which is how
   you re-score after a scoring change: clear them, then re-fetch and they come back
   graded by the current rubric. Older games are left alone, and so is the skipped-match
@@ -395,6 +401,16 @@ Rotating modes are now a **deny** list rather than requiring `CLASSIC` exactly, 
 same reason. The residual risk is a genuinely new rotating mode whose name nobody
 recognises — narrower than rejecting every new standard queue, and it still has to pass
 the structural checks.
+
+**A game is identified by Riot's numeric `gameId`, not by its match id.** Those are
+usually interchangeable, and for Ranked 5s they are not: Riot hands the same game back
+under more than one match id. The "already scored?" check only knew about match ids, so
+each id was treated as a new game — the same match was scored and posted again on every
+scan, at whatever interval the watcher ran, and counted toward the backlog, so
+`/fetchgame` reported games waiting after the squad had played one. Scans now reject a
+match whose `gameId` is already stored, and de-duplicate within a single batch as well,
+since nothing has been saved yet at that point. `/resetgames duplicates:true` clears up
+anything stored before the fix.
 
 Rejections are versioned against the rules that produced them, so **widening the rules
 re-checks games already turned away**. Without that, fixing the filter would never have

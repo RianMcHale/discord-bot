@@ -14,6 +14,7 @@ const cmd = await import('../src/commands/resetgames.js');
 const scores = { d1: playerScore({ composite: 50, role: 'TOP' }) };
 
 const DAY = 86400000;
+const now = Date.now();
 
 function seed(n = 3) {
   db.resetGames();
@@ -24,12 +25,12 @@ function seed(n = 3) {
   db.upsertPlayer({ discordId: 'd1', riotGameName: 'One', riotTagLine: 'EUW', puuid: 'p1' });
 }
 
-function fakeInteraction(userId, confirm, last = null) {
+function fakeInteraction(userId, confirm, last = null, duplicates = null) {
   const captured = {};
   return {
     captured,
     user: { id: userId },
-    options: { getString: () => confirm, getInteger: () => last },
+    options: { getString: () => confirm, getInteger: () => last, getBoolean: () => duplicates },
     async reply(payload) {
       captured.payload = payload;
     }
@@ -161,4 +162,114 @@ test('resetting with nothing stored says so rather than claiming a wipe', async 
   const i = fakeInteraction(OWNER, 'RESET', 5);
   await cmd.execute(i);
   assert.match(i.captured.payload.content, /Nothing to clear/);
+});
+
+// --- duplicates ------------------------------------------------------------
+// Riot hands back more than one match id for a single Ranked 5s game. The
+// "already scored?" check only knew about match ids, so the same game was
+// scored and posted again on every scan, and showed up as a phantom backlog.
+
+/** Stores `matchId` as a copy of the same underlying game `gameId`. */
+function storeCopy(matchId, gameId, daysAgo = 1, quality = 'full') {
+  db.saveGame(matchId, {
+    matchId,
+    gameId,
+    playedAt: now - daysAgo * DAY,
+    queueId: 9999,
+    durationSeconds: 1800,
+    dataQuality: quality,
+    scores: { d1: playerScore({ composite: 50, role: 'TOP', champion: 'Khazix' }) }
+  });
+}
+
+test('two match ids for one game are found as duplicates', () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 7958065396);
+  storeCopy('EUW1_B', 7958065396);
+  storeCopy('EUW1_C', 7958065397); // a genuinely different game
+
+  const groups = db.duplicateGroups();
+  assert.equal(groups.length, 1, 'one game stored twice');
+  assert.equal(groups[0].remove.length, 1, 'one copy to drop');
+  assert.equal(groups[0].keep.matchId, 'EUW1_A', 'lowest match id kept, so the choice is stable');
+});
+
+test('the copy with the better data is the one kept', () => {
+  db.resetGames();
+  storeCopy('EUW1_Z', 111, 1, 'full');
+  storeCopy('EUW1_A', 111, 1, 'partial');
+  const [group] = db.duplicateGroups();
+  assert.equal(group.keep.matchId, 'EUW1_Z', 'a full score beats a partial one, id order second');
+});
+
+test('rows stored before gameId existed fall back to who played and when', () => {
+  db.resetGames();
+  const legacy = (matchId) =>
+    db.saveGame(matchId, {
+      matchId,
+      playedAt: now - DAY,
+      queueId: 9999,
+      durationSeconds: 1800,
+      dataQuality: 'full',
+      scores: { d1: playerScore({ composite: 50, role: 'TOP', champion: 'Khazix' }) }
+    });
+  legacy('OLD_1');
+  legacy('OLD_2');
+  assert.equal(db.duplicateGroups().length, 1, 'no gameId, so matched on the signature');
+});
+
+test('different games are never treated as duplicates', () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 1, 1);
+  storeCopy('EUW1_B', 2, 2);
+  storeCopy('EUW1_C', 3, 3);
+  assert.deepEqual(db.duplicateGroups(), []);
+});
+
+test('duplicates:true removes the copies and keeps everything else', async () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 111, 3);
+  storeCopy('EUW1_B', 111, 3);
+  storeCopy('EUW1_C', 222, 2);
+  storeCopy('EUW1_D', 333, 1);
+
+  const i = fakeInteraction(OWNER, 'RESET', null, true);
+  await cmd.execute(i);
+
+  assert.deepEqual(idsLeft().sort(), ['EUW1_A', 'EUW1_C', 'EUW1_D'], 'only the copy goes');
+  assert.match(i.captured.payload.content, /Removed \*\*1\*\* duplicate/);
+  // Naming what was merged into what matters on the one command that cannot be undone.
+  assert.match(i.captured.payload.content, /kept `EUW1_A`, removed `EUW1_B`/);
+});
+
+test('duplicates:true on a clean history says so rather than claiming a cleanup', async () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 1);
+  storeCopy('EUW1_B', 2);
+  const i = fakeInteraction(OWNER, 'RESET', null, true);
+  await cmd.execute(i);
+  assert.match(i.captured.payload.content, /No duplicates among the \*\*2\*\*/);
+  assert.equal(db.allGames().length, 2, 'nothing removed');
+});
+
+test('duplicates:true still needs the confirmation word and the owner', async () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 111);
+  storeCopy('EUW1_B', 111);
+
+  await cmd.execute(fakeInteraction(OWNER, 'nope', null, true));
+  assert.equal(db.allGames().length, 2, 'wrong word, nothing removed');
+
+  await cmd.execute(fakeInteraction('999', 'RESET', null, true));
+  assert.equal(db.allGames().length, 2, 'not the owner, nothing removed');
+});
+
+test('hasGameId knows a game by its own id, not by a match id', () => {
+  db.resetGames();
+  storeCopy('EUW1_A', 7958065396);
+  assert.equal(db.hasGameId(7958065396), true);
+  assert.equal(db.hasGameId('7958065396'), true, 'match ids arrive as strings from Riot');
+  assert.equal(db.hasGameId(7958065397), false);
+  assert.equal(db.hasGameId(null), false);
+  assert.equal(db.hasGameId(undefined), false);
 });

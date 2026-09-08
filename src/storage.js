@@ -92,6 +92,55 @@ export const db = {
   allGames() {
     return Object.values(read().games).sort((a, b) => a.playedAt - b.playedAt);
   },
+
+  /**
+   * Has this *game* been scored, under any match id?
+   *
+   * `hasGame` asks about a match id, which is not the same question. Riot can
+   * hand back more than one match id for a single game — Ranked 5s does — and
+   * when it does, a match-id check never fires and the same game is scored and
+   * posted again on every scan. `info.gameId` is the numeric identity of the
+   * game itself and does not vary.
+   */
+  hasGameId(gameId) {
+    if (gameId === undefined || gameId === null) return false;
+    return Object.values(read().games).some((g) => g.gameId != null && String(g.gameId) === String(gameId));
+  },
+
+  /**
+   * Stored games that are the same game more than once, newest kept last.
+   *
+   * Grouped on `gameId` where it was recorded. Rows written before it was
+   * stored fall back to a content signature — when it was played, who played,
+   * and on what — which is specific enough that a real collision would mean two
+   * identical lineups finishing a game in the same second.
+   */
+  duplicateGroups() {
+    const groups = new Map();
+    for (const g of this.allGames()) {
+      const key =
+        g.gameId != null
+          ? `id:${g.gameId}`
+          : `sig:${g.playedAt}:${Object.entries(g.scores || {})
+              .map(([id, s]) => `${id}=${s.champion ?? ''}`)
+              .sort()
+              .join(',')}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(g);
+    }
+    return [...groups.entries()]
+      .filter(([, rows]) => rows.length > 1)
+      .map(([key, rows]) => {
+        // Keep the one with the best data, then the lowest match id so the
+        // choice is stable across runs.
+        const ranked = [...rows].sort(
+          (a, b) =>
+            (b.dataQuality === 'full' ? 1 : 0) - (a.dataQuality === 'full' ? 1 : 0) ||
+            String(a.matchId).localeCompare(String(b.matchId))
+        );
+        return { key, keep: ranked[0], remove: ranked.slice(1) };
+      });
+  },
   getGame(matchId) {
     return read().games[matchId] || null;
   },

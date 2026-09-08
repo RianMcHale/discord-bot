@@ -110,6 +110,8 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
 
   const qualifying = [];
   const newlySkipped = [];
+  // Games already claimed by an earlier candidate in this same batch.
+  const seenGameIds = new Set();
 
   for (const matchId of fresh) {
     let match;
@@ -127,6 +129,22 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
       newlySkipped.push({ matchId, reason: unsupportedReason(match.info) });
       continue;
     }
+
+    // Same game, different match id. Riot hands back more than one id for a
+    // single Ranked 5s game, and the `hasGame` check above only knows about ids
+    // — so without this the game is scored and posted again on every scan, and
+    // shows up as a phantom backlog ("2 more games waiting" after playing one).
+    // Cached as a skip so the second id is never fetched again either.
+    //
+    // Both halves are needed: the stored check catches the copy that turns up on
+    // a later scan, `seenGameIds` the one sitting in the very same batch, which
+    // nothing has saved yet.
+    const gameId = match.info.gameId;
+    if (gameId != null && (db.hasGameId(gameId) || seenGameIds.has(String(gameId)))) {
+      newlySkipped.push({ matchId, reason: `already scored as another match id (game ${gameId})` });
+      continue;
+    }
+    if (gameId != null) seenGameIds.add(String(gameId));
 
     const tracked = match.info.participants.filter((p) => trackedPuuidsNow.includes(p.puuid));
     if (tracked.length < 2) {
@@ -197,6 +215,9 @@ export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'n
 
     db.saveGame(matchId, {
       matchId,
+      // The game's own identity, which a match id is not: see db.hasGameId.
+      gameId: match.info.gameId ?? null,
+      platformId: match.info.platformId ?? null,
       playedAt: match.info.gameEndTimestamp || match.info.gameStartTimestamp || Date.now(),
       queueId: match.info.queueId,
       durationSeconds: match.info.gameDuration,

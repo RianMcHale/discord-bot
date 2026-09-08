@@ -270,3 +270,79 @@ test('reports nothing found without claiming it checked nothing', async () => {
   assert.equal(result.checked, 0);
   assert.equal(result.remaining, 0);
 });
+
+// Riot hands back more than one match id for a single Ranked 5s game. The
+// "already scored?" check only knew about match ids, so the same game was
+// re-scored and re-posted on every scan, at whatever interval the watcher ran —
+// and counted toward the backlog, reporting games waiting after playing one.
+test('one game under two match ids is scored once, not once per id', async () => {
+  db.resetGames();
+  const a = sharedMatch('EUW1_A', 3000);
+  const b = sharedMatch('EUW1_B', 3000);
+  // The same game: match ids differ, Riot's numeric game id does not.
+  a.info.gameId = 7958065396;
+  b.info.gameId = 7958065396;
+
+  const first = await scanForNewGames({ api: fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches: { EUW1_A: a, EUW1_B: b } }) });
+  assert.equal(first.scored.length, 1, 'scored once');
+  assert.equal(first.remaining, 0, 'and no phantom backlog behind it');
+  assert.equal(db.allGames().length, 1);
+
+  // The second id must not come back on the next scan either.
+  const second = await scanForNewGames({ api: fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches: { EUW1_A: a, EUW1_B: b } }) });
+  assert.equal(second.scored.length, 0, 'nothing new to post');
+  assert.equal(db.allGames().length, 1);
+});
+
+test('the duplicate id is cached as skipped, so it is never fetched twice', async () => {
+  db.resetGames();
+  const a = sharedMatch('EUW1_A', 3000);
+  const b = sharedMatch('EUW1_B', 3000);
+  a.info.gameId = 111;
+  b.info.gameId = 111;
+  const matches = { EUW1_A: a, EUW1_B: b };
+
+  await scanForNewGames({ api: fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches }) });
+  const again = fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches });
+  await scanForNewGames({ api: again });
+  assert.equal(again.calls.getMatch.length, 0, 'neither id costs a Riot call again');
+});
+
+test('the game id is stored, so duplicates can be found after the fact', async () => {
+  db.resetGames();
+  const a = sharedMatch('EUW1_A', 3000);
+  a.info.gameId = 7958065396;
+  a.info.platformId = 'EUW1';
+  await scanForNewGames({ api: fakeApi({ ids: ['EUW1_A'], matches: { EUW1_A: a } }) });
+  const [stored] = db.allGames();
+  assert.equal(stored.gameId, 7958065396);
+  assert.equal(stored.platformId, 'EUW1');
+});
+
+test('genuinely different games are still both scored', async () => {
+  db.resetGames();
+  const a = sharedMatch('EUW1_A', 3000);
+  const b = sharedMatch('EUW1_B', 1000);
+  a.info.gameId = 111;
+  b.info.gameId = 222;
+  const result = await scanForNewGames({
+    api: fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches: { EUW1_A: a, EUW1_B: b } }),
+    maxToScore: 5
+  });
+  assert.equal(result.scored.length, 2);
+});
+
+test('a match with no gameId is not treated as a duplicate of another', async () => {
+  // Older matches, and anything where Riot omits the field, must not all collide
+  // on "undefined" and silently swallow each other.
+  db.resetGames();
+  const a = sharedMatch('EUW1_A', 3000);
+  const b = sharedMatch('EUW1_B', 1000);
+  delete a.info.gameId;
+  delete b.info.gameId;
+  const result = await scanForNewGames({
+    api: fakeApi({ ids: ['EUW1_A', 'EUW1_B'], matches: { EUW1_A: a, EUW1_B: b } }),
+    maxToScore: 5
+  });
+  assert.equal(result.scored.length, 2, 'both scored');
+});
