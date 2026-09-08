@@ -402,6 +402,23 @@ same reason. The residual risk is a genuinely new rotating mode whose name nobod
 recognises — narrower than rejecting every new standard queue, and it still has to pass
 the structural checks.
 
+**The startup purge removes queues known to be wrong, not queues merely unrecognised.**
+It runs with only a stored `queueId`, where the scanner had the whole match to look at, so
+checking it against the accept list let a startup task overrule a decision made with far
+better information. That is what happened to Ranked 5s: the scanner accepted it on the
+structural check, the purge deleted it on every boot, the watcher re-found and re-posted
+it, and the same three games came back after every deploy — visible in the logs as
+`Removed 3 game(s) from unsupported queues: 3× queue 710`.
+
+Both components now consult one list of queues that positively break the rubrics — ARAM,
+Arena, bots, rotating modes — so no queue can be scored by one and deleted by the other.
+That invariant is a test, not a coincidence of two lists lining up. Swiftplay is
+deliberately not on it: excluding a normal-looking Rift game is a judgement call, and
+`BLOCKED_QUEUES` is where judgement calls belong.
+
+**Ranked 5s is queue 710.** Observed in the wild; still absent from Riot's published
+`queues.json`, so the structural check is what catches the next one.
+
 **An unreadable database recovers from the last good copy, not from empty.** `read()`
 returning empty was never just a failure to load — it is persisted by the very next
 `write()`, so a single bad read silently destroyed the entire history, and every stored

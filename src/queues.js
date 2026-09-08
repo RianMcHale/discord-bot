@@ -25,8 +25,34 @@ export const DEFAULT_ALLOWED_QUEUES = [
   430, // Normal Blind Pick
   440, // Ranked Flex
   490, // Quickplay
-  700 // Clash
+  700, // Clash
+  710 // Ranked 5s — id observed in the wild, still absent from Riot's queues.json
 ];
+
+/**
+ * Queues we positively know break the rubrics: ARAM, Arena, bots, rotating modes.
+ *
+ * Distinct from "not on the accept list", and the distinction matters wherever
+ * only a queue id is available. Deleting on absence from the accept list means
+ * deleting every queue Riot invents next, which is how Ranked 5s ended up being
+ * purged at every boot and re-posted by the watcher afterwards.
+ *
+ * Swiftplay (480) is deliberately not here: it is a normal-looking Rift game, so
+ * excluding it is a judgement call, and BLOCKED_QUEUES is where judgement calls
+ * belong.
+ */
+export const KNOWN_UNSUPPORTED_QUEUES = new Set([
+  0, // Custom
+  450, // ARAM
+  720, // ARAM Clash
+  830, 840, 850, 870, 880, 890, // Co-op vs AI
+  900, // ARURF
+  1020, // One for All
+  1300, // Nexus Blitz
+  1400, // Ultimate Spellbook
+  1700, 1710, // Arena
+  1900 // URF
+]);
 
 // Bumped whenever the acceptance rules change. It is stored on every rejection,
 // so widening the rules automatically re-checks matches turned away under the
@@ -43,6 +69,7 @@ export const QUEUE_NAMES = {
   480: 'Swiftplay',
   490: 'Quickplay',
   700: 'Clash',
+  710: 'Ranked 5s',
   720: 'ARAM Clash',
   830: 'Co-op vs AI (Intro)',
   840: 'Co-op vs AI (Beginner)',
@@ -145,6 +172,13 @@ export function isSupportedQueue(info) {
   // through to a structural check, leaving a queue off ALLOWED_QUEUES no longer
   // excludes it. BLOCKED_QUEUES is the only thing that does.
   if (blockedQueues().includes(info.queueId)) return false;
+  // Checked here as well as in the startup purge, so the two can never disagree
+  // about a queue. They diverged once — the scanner accepted Ranked 5s on the
+  // structural check while the purge deleted it for being off the accept list,
+  // and the watcher re-posted the same three games after every deploy. Keeping
+  // the rule in one place makes that structurally impossible rather than a
+  // coincidence of two lists happening to line up.
+  if (KNOWN_UNSUPPORTED_QUEUES.has(info.queueId)) return false;
   if (info.mapId !== undefined && info.mapId !== 11) return false;
   if (isRotatingMode(info.gameMode)) return false;
   // No gameMode condition here: the rotating-mode check above already covers it,

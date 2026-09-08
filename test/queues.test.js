@@ -163,3 +163,23 @@ test('changing the block list re-checks games rejected under the old one', async
     config.blockedQueues = original;
   }
 });
+
+test('no queue can be both scored and purged, which is what caused the loop', async () => {
+  // The scanner accepted Ranked 5s while the startup purge deleted it, so the
+  // watcher re-found and re-posted the same games after every deploy. This is
+  // the invariant that makes that impossible rather than coincidental.
+  const { KNOWN_UNSUPPORTED_QUEUES } = await import('../src/queues.js');
+  for (const queueId of KNOWN_UNSUPPORTED_QUEUES) {
+    assert.equal(
+      isSupportedQueue(riftLobby({ queueId })),
+      false,
+      `${queueName(queueId)} would be scored and then purged on the next boot`
+    );
+  }
+});
+
+test('Ranked 5s is queue 710, and is scored', () => {
+  assert.equal(queueName(710), 'Ranked 5s');
+  assert.equal(isSupportedQueue(riftLobby({ queueId: 710 })), true);
+  assert.equal(DEFAULT_ALLOWED_QUEUES.includes(710), true, 'now that the id is known, take the fast path');
+});
