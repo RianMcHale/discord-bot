@@ -139,17 +139,39 @@ test('a support without a timeline is not given a neutral roam score', () => {
   assert.notEqual(presence(without).score, presence(withTl).score);
 });
 
-test('an unreadable database is backed up and recovered from, not fatal', () => {
+test('an unreadable database is recovered from the last good copy, not wiped', () => {
+  // Starting from empty is not a safe fallback. `read()` returning empty is
+  // persisted by the very next `write()`, so one bad read destroys the whole
+  // history — and every stored game is then re-fetched and re-posted.
   db.resetGames();
   db.upsertPlayer({ discordId: 'x', riotGameName: 'X', riotTagLine: 'E', puuid: 'px' });
+  db.saveGame('KEEPME', {
+    ...gameRecord({ matchId: 'KEEPME', playedAt: 1, scores: { x: playerScore({ composite: 50, role: 'TOP' }) } }),
+    queueId: 420
+  });
+
   fs.writeFileSync(dbPath, '{ "players": { truncated');
 
   // Used to throw out of every command and every watcher tick.
   assert.doesNotThrow(() => db.allPlayers());
-  assert.equal(db.allPlayers().length, 0, 'starts clean rather than refusing to run');
+  assert.ok(db.getPlayer('x'), 'the roster survives');
+  assert.equal(db.allGames().length, 1, 'and so does the history');
+  assert.equal(db.allGames()[0].matchId, 'KEEPME');
 
   const backups = fs.readdirSync(process.env.DATA_DIR).filter((f) => f.includes('.corrupt-'));
-  assert.ok(backups.length >= 1, 'the unreadable file is preserved for recovery');
+  assert.ok(backups.length >= 1, 'the unreadable file is still preserved for inspection');
+});
+
+test('with no usable backup it starts empty rather than refusing to run', () => {
+  db.resetGames();
+  db.upsertPlayer({ discordId: 'z', riotGameName: 'Z', riotTagLine: 'E', puuid: 'pz' });
+  // Both the live file and the recovery point are gone.
+  fs.writeFileSync(dbPath, 'not json at all');
+  const backup = `${dbPath}.bak`;
+  if (fs.existsSync(backup)) fs.writeFileSync(backup, 'also not json');
+
+  assert.doesNotThrow(() => db.allPlayers());
+  assert.equal(db.allPlayers().length, 0, 'a bot that runs beats one that will not start');
 });
 
 test('writes are atomic, so an interrupted write cannot corrupt the store', () => {
@@ -158,7 +180,7 @@ test('writes are atomic, so an interrupted write cannot corrupt the store', () =
   db.saveGame('G', { ...gameRecord({ matchId: 'G', playedAt: 1, scores: { y: playerScore({ composite: 50, role: 'TOP' }) } }), queueId: 420 });
 
   // The temp file must not survive a completed write.
-  const leftovers = fs.readdirSync(process.env.DATA_DIR).filter((f) => f.endsWith('.tmp'));
+  const leftovers = fs.readdirSync(process.env.DATA_DIR).filter((f) => f.includes('.tmp'));
   assert.deepEqual(leftovers, [], 'no .tmp file left behind');
   assert.equal(db.allGames().length, 1);
 });

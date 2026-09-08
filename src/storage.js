@@ -32,37 +32,85 @@ function ensureDb() {
   if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, JSON.stringify(EMPTY, null, 2));
 }
 
+// The last state that parsed cleanly, kept beside the live file. Recovering from
+// this rather than from nothing is the difference between losing a scan and
+// losing a season: `read()` returning empty does not merely lose the data in
+// memory, it is persisted by the very next `write()`, so one bad read silently
+// destroys the whole history and every stored game gets re-fetched and re-posted.
+const BACKUP_PATH = `${DB_PATH}.bak`;
+
+function parseFile(file) {
+  // Spread over EMPTY so a db written by an older version (no `skipped` key, or
+  // carrying the removed `votes` key) still reads cleanly.
+  return { ...EMPTY, ...JSON.parse(fs.readFileSync(file, 'utf-8')) };
+}
+
 function read() {
   ensureDb();
   try {
-    // Spread over EMPTY so a db written by an older version (no `skipped` key, or
-    // carrying the removed `votes` key) still reads cleanly.
-    const parsed = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-    return { ...EMPTY, ...parsed };
+    return parseFile(DB_PATH);
   } catch (err) {
     // An unreadable file used to throw out of every command and every watcher
     // tick, taking the whole bot down until someone edited JSON by hand. Move it
-    // aside and carry on: the backup keeps the data recoverable, and a bot that
-    // runs is more useful than one that refuses to start.
-    const backup = `${DB_PATH}.corrupt-${Date.now()}`;
+    // aside and carry on: a bot that runs is more useful than one that refuses
+    // to start. But carrying on from *empty* is its own disaster, so the last
+    // good copy is tried first.
+    const corrupt = `${DB_PATH}.corrupt-${Date.now()}`;
     try {
-      fs.copyFileSync(DB_PATH, backup);
+      fs.copyFileSync(DB_PATH, corrupt);
     } catch {
       /* the backup is best-effort; never let it stop recovery */
     }
-    console.error(`db.json could not be read (${err.message}). Backed up to ${backup}, starting from empty.`);
+
+    if (fs.existsSync(BACKUP_PATH)) {
+      try {
+        const restored = parseFile(BACKUP_PATH);
+        const games = Object.keys(restored.games || {}).length;
+        console.error(
+          `db.json could not be read (${err.message}). Bad copy saved to ${corrupt}. ` +
+            `Restored the last good state from ${BACKUP_PATH} — ${games} scored game(s).`
+        );
+        fs.writeFileSync(DB_PATH, JSON.stringify(restored, null, 2));
+        return restored;
+      } catch (backupErr) {
+        console.error(`The backup at ${BACKUP_PATH} is unreadable too (${backupErr.message}).`);
+      }
+    }
+
+    console.error(
+      `db.json could not be read (${err.message}) and there is no usable backup. ` +
+        `Bad copy saved to ${corrupt}, starting from empty. Every stored game will be re-fetched.`
+    );
     fs.writeFileSync(DB_PATH, JSON.stringify(EMPTY, null, 2));
     return { ...EMPTY };
   }
 }
 
+let writeCounter = 0;
+
 function write(db) {
   // Write-then-rename, because rename is atomic within a filesystem. A plain
   // writeFileSync that is interrupted — a deploy, an OOM kill — leaves a
   // half-written file behind, which is how the corruption above happens.
-  const tmp = `${DB_PATH}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  //
+  // The temp name carries the pid and a counter. A fixed name is safe within one
+  // process, since writes here are synchronous, but not across two: a deploy
+  // overlaps the old container with the new one, both mounted on the same volume,
+  // and a shared scratch file is then two writers racing on one path.
+  const json = JSON.stringify(db, null, 2);
+  const tmp = `${DB_PATH}.tmp-${process.pid}-${writeCounter++}`;
+  fs.writeFileSync(tmp, json);
   fs.renameSync(tmp, DB_PATH);
+
+  // The recovery point is the state just committed, not the one it replaced, so
+  // recovering loses nothing rather than rewinding by a write. Written after the
+  // rename: if that failed, the previous good state is still what is on disk and
+  // still what the backup holds.
+  try {
+    fs.writeFileSync(BACKUP_PATH, json);
+  } catch {
+    /* best-effort: never let backup failure block the write itself */
+  }
 }
 
 export const db = {

@@ -402,6 +402,19 @@ same reason. The residual risk is a genuinely new rotating mode whose name nobod
 recognises — narrower than rejecting every new standard queue, and it still has to pass
 the structural checks.
 
+**An unreadable database recovers from the last good copy, not from empty.** `read()`
+returning empty was never just a failure to load — it is persisted by the very next
+`write()`, so a single bad read silently destroyed the entire history, and every stored
+game was then re-fetched and re-posted as new. Every successful write now also writes
+`db.json.bak`, and a failed read restores from it before considering starting over. The
+unreadable file is still preserved as `db.json.corrupt-<timestamp>` either way, and the
+recovery path says loudly which of the two happened.
+
+The scratch file a write renames from now carries the pid and a counter. A fixed name is
+safe within one process, since these writes are synchronous, but not across two — a deploy
+overlaps the old container with the new one on the same volume, and a shared scratch path
+is then two writers racing.
+
 **Only one scan runs at a time, process-wide.** A scan reads which games are already
 stored, spends a dozen Riot calls fetching and scoring them, and only saves at the very
 end. Two overlapping scans therefore both decide the same game is unscored, both score it,
