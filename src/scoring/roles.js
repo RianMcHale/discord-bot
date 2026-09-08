@@ -28,7 +28,7 @@ import { versus, fromDiff, weightedMean, blend, component, clamp, safeDiv } from
 // 1 by construction. Carries take more of them than the two roles whose job is
 // to set the kill up.
 export const BASELINE = {
-  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
+  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
   // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
   // a jungler who kept farming between plays.
@@ -37,8 +37,12 @@ export const BASELINE = {
   // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
   // above: it is only used as the second anchor in a blend, so being roughly
   // right beats having no anchor at all.
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
-  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4 },
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
+  // `ccScore` and `healShield` are the two axes a support can specialise on, and
+  // they are bimodal by champion: an Alistar does no healing, a Soraka almost no
+  // CC. Each is the bar for a support who *chose* that axis, so the higher of
+  // the two is what gets graded — see `scoreSupport`.
+  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, ccScore: 55, healShield: 700 },
   UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
 
@@ -480,7 +484,14 @@ function scoreTop(P, ctx) {
     score: pressureAdjusted(
       weightedMean([
         { score: opp ? versus(P.platesTaken, opp.platesTaken, { prior: 2.5, gain: 1.4 }) : null, weight: 0.45 },
-        { score: opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2000, gain: 1.3 }) : null, weight: 0.35 },
+        {
+          score: blend(
+            opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2000, gain: 1.3 }) : null,
+            versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2000, gain: 1.3 }),
+            0.55
+          ),
+          weight: 0.35
+        },
         { score: opp ? versus(P.soloKills, opp.soloKills, { prior: 1.2, gain: 1.4 }) : null, weight: 0.2 }
       ]),
       P
@@ -699,7 +710,18 @@ function scoreAdc(P, ctx) {
 
   const structures = {
     score: weightedMean([
-      { score: opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2500, gain: 1.3 }) : null, weight: 0.55 },
+      {
+        // Anchored, like every other comparison. Turret damage is as
+        // champion-determined as farm is - a Jinx shreds towers, an Ezreal does
+        // not - and unanchored it swung this component 23 points on the enemy
+        // ADC's pick alone.
+        score: blend(
+          opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2500, gain: 1.3 }) : null,
+          versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2500, gain: 1.3 }),
+          0.55
+        ),
+        weight: 0.55
+      },
       { score: objectiveComponent(P, ctx, b, { controlShare: 0.25 }).score, weight: 0.45 }
     ]),
     detail: `${Math.round(P.turretDamage / 100) / 10}k turret dmg · ${P.turretTakedowns} turrets`
@@ -707,7 +729,13 @@ function scoreAdc(P, ctx) {
 
   return {
     components: [
-      component('combat', 'Damage', 28, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.1 }))),
+      // Kill share was withheld here on the reasoning that a marksman's damage
+      // already tracks their kills. It does not reliably: a poke ADC racks up
+      // chip damage that killed nobody, and a burst one converts less damage
+      // into more kills. An Ezreal on 32% of his team's kills and 27% of its
+      // damage is the case — the two disagree, which is precisely what kill
+      // share exists to catch, and it was the only carry role that could not.
+      component('combat', 'Damage', 28, ...pick(combatComponent(P, ctx, b, { frontlineShare: 0.1, killShareWeight: 0.2 }))),
       component('deaths', 'Positioning', 20, ...pick(deathComponent(P, ctx, b))),
       component('lane', 'Lane', laningWeight(18, ctx), lane?.score, lane?.detail),
       component('economy', 'Farming', 16, economy.score, economy.detail),
@@ -727,8 +755,22 @@ function scoreSupport(P, ctx) {
 
   // Engage and peel are opposite playstyles that both count. An Alistar scores on
   // CC, a Lulu on healing and shielding — whichever they specialise in leads.
-  const ccScore = opp ? versus(P.ccScore, opp.ccScore, { prior: 15, gain: 1.35 }) : null;
-  const healScore = opp ? versus(P.healShieldPerMin, opp.healShieldPerMin, { prior: 120, gain: 1.35 }) : null;
+  // Measured against what a support who specialises in that axis actually does,
+  // not against whatever the enemy happened to pick. Comparing head-to-head only
+  // was the single most matchup-dependent thing in the model: a Soraka opposite
+  // an Ashe support scored ~100 here — 22% of the grade, maxed in champion
+  // select — because Ashe heals nothing, and the same Soraka opposite a Lulu
+  // would have scored around 50 for an identical game.
+  const ccScore = blend(
+    opp ? versus(P.ccScore, opp.ccScore, { prior: 15, gain: 1.35 }) : null,
+    versus(P.ccScore, b.ccScore, { prior: 15, gain: 1.35 }),
+    0.4
+  );
+  const healScore = blend(
+    opp ? versus(P.healShieldPerMin, opp.healShieldPerMin, { prior: 120, gain: 1.35 }) : null,
+    versus(P.healShieldPerMin, b.healShield, { prior: 120, gain: 1.35 }),
+    0.4
+  );
   const saveScore = opp ? versus(P.savesPerGame, opp.savesPerGame, { prior: 1.2, gain: 1.3 }) : null;
   // Leaving a won bot lane to make things happen elsewhere is the support's job,
   // not a dereliction of it. Takedowns away from their own lane during laning

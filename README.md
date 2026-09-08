@@ -141,6 +141,28 @@ first, leaving the other two broken in exactly the same way for exactly the same
 A test now walks the source for cs comparisons that aren't inside a blend, so the next one
 can't be missed.
 
+**No role's score is decided by who the enemy picked.** The general form of the same
+problem, found by holding a player's own stats fixed and varying *only* the opponent
+across the range one role spans on champion identity alone:
+
+| | swing on champion select | worst component |
+|---|---|---|
+| Support | 15.7 → **6.2** | Utility 66 → 25 |
+| ADC | 6.3 → **4.8** | Objectives 23 → 14 |
+| Top | 5.5 → **4.3** | Side lane 18 → 10 |
+| Jungle | 3.0 → **3.0** | |
+| Mid | 2.8 → **2.8** | |
+
+Support's Utility was the worst thing in the model: a Soraka opposite an Ashe support
+scored ~100 on 22% of the grade, because Ashe heals nothing — the identical game opposite
+a Lulu scored around 50. CC and heal/shield are now measured against what a support who
+*specialises* in that axis actually does, with the higher of the two taken, so an Alistar
+is judged as an engage support and a Soraka as an enchanter rather than both being judged
+against whoever the enemy locked in. Turret damage got the same treatment for ADC and top.
+
+Roles were 5.6× apart in how matchup-dependent they were; they are now 2.2×, and a test
+holds both the absolute swing and the ratio.
+
 Also: jungle CS is **monsters, not camps** — Riot's own field is `enemyJungleMonsterKills`,
 and a full six-camp clear is about eighteen of them. The card used to say "100 camps @14",
 which made an ordinary five-clear game read as absurd. It now says `100 jg cs @14`.
@@ -153,10 +175,14 @@ felt it worst, being the only rubric with no participation component at all — 
 
 Kill share now sits *inside* the Teamfight/Damage component rather than beside it, so it
 can never be a route to a good score on its own: taking every kill on the team while doing
-no damage still grades badly. Jungle leans on it hardest, mid gets it lighter (Roaming
-already measures participation there), and top and ADC not at all — top counts solo kills
-under Side lane, and the ADC has Presence plus 28% on damage. The five roles'
-baselines sum to exactly 1, because a share of one team's kills is what it is.
+no damage still grades badly. Jungle leans on it hardest, then mid and ADC, and top not at
+all — top already counts solo kills under Side lane. The five roles' baselines sum to
+exactly 1, because a share of one team's kills is what it is.
+
+The ADC was withheld at first, on the reasoning that a marksman's damage already tracks
+their kills. It does not reliably, and an Ezreal on **32% of his team's kills and 27% of
+its damage** is the case: the two disagree, which is precisely what kill share exists to
+catch, and it was the only carry role that could not see it.
 
 **Deaths are weighted by whose fault they were.** A 1v1 death counts 1.25×, a 3-man
 collapse 0.75×, a death inside a teamfight 0.55×. Traded deaths, deaths alone in enemy

@@ -69,24 +69,31 @@ test('a jungler cannot reach a good Teamfight score on kills alone', () => {
   assert.ok(combatOf(scored, 'p2') < 55, `kill-stealing to 100% must not score well (${combatOf(scored, 'p2')})`);
 });
 
-test('mid gets it lighter than jungle, and top and ADC not at all', () => {
+test('every carry role is graded on kill conversion, jungle hardest', () => {
   const spread = (id) => combatOf(withKillShare(id, 0.4), `p${id}`) - combatOf(withKillShare(id, 0.1), `p${id}`);
   const jungle = spread(2);
   const mid = spread(3);
+  const adc = spread(4);
 
   assert.ok(jungle > mid, 'jungle leans on it hardest, having no participation component');
-  assert.ok(mid > 0, 'mid is the other assassin lane');
-  // Top has solo kills in Side lane and ADC has Presence, so neither needs it.
+  assert.ok(mid > 0, 'mid is an assassin lane');
+  // The ADC was withheld at first on the reasoning that a marksman's damage
+  // already tracks their kills. It does not reliably — a poke ADC chips damage
+  // that killed nobody, a burst one converts less damage into more kills.
+  assert.ok(adc > 0, 'an ADC who converts must not be invisible');
+  assert.ok(jungle > adc, 'still lightest where another component already covers it');
+  // Top has solo kills inside Side lane, so it needs no separate measure.
   assert.ok(Math.abs(spread(1)) < 0.01, 'top is unaffected');
-  assert.ok(Math.abs(spread(4)) < 0.01, 'ADC is unaffected');
 });
 
 test('the detail line reports kill share only where it counts', () => {
   const scored = withKillShare(2, 0.4);
   const jungle = scored.p2.components.find((c) => c.key === 'combat');
   const adc = scored.p4.components.find((c) => c.key === 'combat');
+  const top = scored.p1.components.find((c) => c.key === 'combat');
   assert.match(jungle.detail, /% of kills/);
-  assert.doesNotMatch(adc.detail, /% of kills/, 'no point showing a number that is not being graded');
+  assert.match(adc.detail, /% of kills/);
+  assert.doesNotMatch(top.detail, /% of kills/, 'no point showing a number that is not being graded');
 });
 
 test('a game with no kills at all does not crash or score zero', () => {

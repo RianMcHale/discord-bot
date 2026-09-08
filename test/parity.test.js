@@ -32,11 +32,12 @@ const POS = {
   5: { x: 12500, y: 1300 }, 10: { x: 13500, y: 2300 }
 };
 
-function evenGame(minutes) {
+/** `oppTweak(role)` overrides the ENEMY player in that role, leaving ours alone. */
+function evenGame(minutes, oppTweak = () => ({})) {
   const participants = [];
   for (let id = 1; id <= 10; id++) {
     const role = ROLES[(id - 1) % 5];
-    const r = RATE[role];
+    const r = { ...RATE[role], ...(id > 5 ? oppTweak(role) : {}) };
     participants.push({
       puuid: `p${id}`, participantId: id, teamId: id <= 5 ? 100 : 200,
       teamPosition: role, championName: role, win: id > 5,
@@ -64,7 +65,8 @@ function evenGame(minutes) {
   for (let m = 0; m <= Math.floor(minutes); m++) {
     const pfs = {};
     for (let id = 1; id <= 10; id++) {
-      const r = RATE[ROLES[(id - 1) % 5]];
+      const role = ROLES[(id - 1) % 5];
+      const r = { ...RATE[role], ...(id > 5 ? oppTweak(role) : {}) };
       pfs[String(id)] = {
         participantId: id, totalGold: Math.round(r.gold * m), xp: Math.round(r.gold * 1.15 * m),
         minionsKilled: Math.round(r.cs * m), jungleMinionsKilled: Math.round(r.jg * m), position: POS[id]
@@ -128,4 +130,39 @@ test('every rubric sums to 100 at the reference game length', () => {
     const total = scored[`p${id}`].components.reduce((s, c) => s + c.weight, 0);
     assert.equal(total, 100, `${ROLES[id - 1]} weights sum to ${total}`);
   }
+});
+
+// A component that can be maxed in champion select is not measuring play. This
+// is the guard: hold a player's own stats fixed and vary only the opponent
+// across the range one role realistically spans on champion identity alone.
+const CHAMPION_SPREAD = {
+  TOP: { cs: [4.5, 8.0], dmg: [0.14, 0.28], td: [60, 400], cc: [0.5, 5.0], hs: [0, 60] },
+  JUNGLE: { cs: [4.0, 7.5], dmg: [0.12, 0.26], td: [20, 200], cc: [0.5, 5.0], hs: [0, 40] },
+  MIDDLE: { cs: [5.5, 9.0], dmg: [0.18, 0.36], td: [40, 200], cc: [0.4, 3.5], hs: [0, 40] },
+  BOTTOM: { cs: [5.5, 10.7], dmg: [0.2, 0.38], td: [120, 450], cc: [0.2, 2.0], hs: [0, 40] },
+  UTILITY: { cs: [0.5, 2.5], dmg: [0.04, 0.16], td: [5, 60], cc: [1.0, 12.0], hs: [0, 1200] }
+};
+
+/** Same lobby, but the enemy in `role` is swapped for a weak or strong pick. */
+function versusChampion(role, end) {
+  const i = end === 'weak' ? 0 : 1;
+  const s = CHAMPION_SPREAD[role];
+  const scored = evenGame(41, (r) =>
+    r === role ? { dmg: s.dmg[i], cs: s.cs[i], td: s.td[i], cc: s.cc[i], hs: s.hs[i] } : {}
+  );
+  return scored[`p${ROLES.indexOf(role) + 1}`].composite;
+}
+
+test('no role’s score is decided by who the enemy picked', () => {
+  const swings = ROLES.map((role) => [role, versusChampion(role, 'weak') - versusChampion(role, 'strong')]);
+  for (const [role, swing] of swings) {
+    assert.ok(swing > 0, `${role} should still reward beating your counterpart`);
+    assert.ok(swing < 9, `${role} swings ${swing.toFixed(1)} points on champion select alone`);
+  }
+  // And the roles must be comparable in how matchup-dependent they are. Support
+  // was 5.6x mid, almost entirely from Utility being graded head-to-head only:
+  // a Soraka opposite an Ashe support scored ~100 on 22% of the grade.
+  const worst = Math.max(...swings.map(([, s]) => s));
+  const best = Math.min(...swings.map(([, s]) => s));
+  assert.ok(worst / best < 3, `matchup dependence ranges ${best.toFixed(1)}–${worst.toFixed(1)} across roles`);
 });
