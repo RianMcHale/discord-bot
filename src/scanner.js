@@ -77,6 +77,33 @@ async function collectCandidateIds(api, players, lookback) {
   return { ids: [...idSet], errors };
 }
 
+// Only one scan at a time, process-wide.
+//
+// A scan reads which games are already stored, then spends a dozen Riot calls
+// fetching and scoring them, and only saves at the very end. Two scans overlapping
+// therefore both decide a game is unscored, both score it, and both post it —
+// one database row, two identical scorecards a minute apart. The watcher had a
+// `running` flag but it only stopped watcher-vs-watcher; nothing stopped the
+// watcher overlapping a manual /fetchgame, which is the pairing that actually
+// happens, because people run /fetchgame when they notice the watcher is due.
+//
+// Serialising rather than rejecting: the second caller waits, then runs its own
+// scan, which correctly sees what the first one saved. /fetchgame has already
+// deferred its reply, so waiting costs it nothing.
+let scanChain = Promise.resolve();
+
+export function scanForNewGames(opts = {}) {
+  const run = scanChain.then(
+    () => runScan(opts),
+    () => runScan(opts) // a failed scan must not wedge every scan after it
+  );
+  scanChain = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
 /**
  * @param {object} opts
  * @param {number} opts.lookback   recent matches to check per player
@@ -88,7 +115,7 @@ async function collectCandidateIds(api, players, lookback) {
  *   and should therefore read in the order they were played.
  * @returns {Promise<{scored: object[], remaining: number, checked: number, cached: number, players: object[]}>}
  */
-export async function scanForNewGames({ lookback = 5, maxToScore = 5, order = 'newest', api = riot } = {}) {
+async function runScan({ lookback = 5, maxToScore = 5, order = 'newest', api = riot } = {}) {
   const players = db.allPlayers();
   if (players.length < 2) {
     return { scored: [], remaining: 0, checked: 0, cached: 0, players, tooFewPlayers: true };

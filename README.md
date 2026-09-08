@@ -402,6 +402,15 @@ same reason. The residual risk is a genuinely new rotating mode whose name nobod
 recognises — narrower than rejecting every new standard queue, and it still has to pass
 the structural checks.
 
+**Only one scan runs at a time, process-wide.** A scan reads which games are already
+stored, spends a dozen Riot calls fetching and scoring them, and only saves at the very
+end. Two overlapping scans therefore both decide the same game is unscored, both score it,
+and both post it — one database row, two identical scorecards a minute apart. The watcher
+had a guard against overlapping *itself*, but nothing stopped it overlapping a manual
+`/fetchgame`, which is the pairing that actually happens: people run `/fetchgame` when
+they notice the watcher is due. Scans are serialised rather than rejected, so the second
+caller waits and then sees what the first one saved.
+
 **A game is identified by Riot's numeric `gameId`, not by its match id.** Those are
 usually interchangeable, and for Ranked 5s they are not: Riot hands the same game back
 under more than one match id. The "already scored?" check only knew about match ids, so

@@ -346,3 +346,65 @@ test('a match with no gameId is not treated as a duplicate of another', async ()
   });
   assert.equal(result.scored.length, 2, 'both scored');
 });
+
+// The watcher posted a game at 18:24 and a manual /fetchgame posted the same one
+// at 18:25. One database row, two identical scorecards: a scan reads what is
+// already stored, spends a dozen Riot calls scoring, and only saves at the end,
+// so two overlapping scans both decide the same game is unscored.
+test('two scans running at once do not both score the same game', async () => {
+  db.resetGames();
+  const match = sharedMatch('EUW1_RACE', 3000);
+  match.info.gameId = 555;
+
+  // An API slow enough that the second scan starts while the first is still in
+  // flight — which is the whole race, and is ordinary for a dozen Riot calls.
+  const slow = {
+    calls: { getMatch: [] },
+    async getRecentMatchIds() {
+      await new Promise((r) => setTimeout(r, 5));
+      return ['EUW1_RACE'];
+    },
+    async getAccountByRiotId() {
+      return null;
+    },
+    async getMatch(id) {
+      this.calls.getMatch.push(id);
+      await new Promise((r) => setTimeout(r, 5));
+      return match;
+    },
+    async getTimeline() {
+      await new Promise((r) => setTimeout(r, 5));
+      return { timeline: null, transientFailure: false };
+    }
+  };
+
+  // The watcher and a manual /fetchgame, launched together.
+  const [watcher, manual] = await Promise.all([
+    scanForNewGames({ api: slow, order: 'oldest', maxToScore: 3 }),
+    scanForNewGames({ api: slow, order: 'newest', maxToScore: 1 })
+  ]);
+
+  const posted = watcher.scored.length + manual.scored.length;
+  assert.equal(posted, 1, `the game should be posted once, not ${posted} times`);
+  assert.equal(db.allGames().length, 1, 'and stored once, as it always was');
+});
+
+test('a scan that throws does not wedge every scan after it', async () => {
+  db.resetGames();
+  const exploding = {
+    async getRecentMatchIds() {
+      throw Object.assign(new Error('boom'), { response: { status: 500 } });
+    },
+    async getAccountByRiotId() {
+      return null;
+    }
+  };
+  // Errors inside a scan are caught and reported, so this checks the lock keeps
+  // its place in either case rather than that the call rejects.
+  await scanForNewGames({ api: exploding });
+
+  const match = sharedMatch('EUW1_AFTER', 3000);
+  match.info.gameId = 777;
+  const ok = await scanForNewGames({ api: fakeApi({ ids: ['EUW1_AFTER'], matches: { EUW1_AFTER: match } }) });
+  assert.equal(ok.scored.length, 1, 'the next scan still runs');
+});
