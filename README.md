@@ -127,12 +127,19 @@ And Riot's `dragonTakedowns` challenge counts an Elder as just another dragon, s
 personal tally valued Elder at 1 while the team tally valued it at 2 — anyone who took
 Elder had their objective share understated for it.
 
-**Every component is anchored to a role baseline, not only to your counterpart.** Jungle
-farm was the last one graded purely head-to-head, which meant a good clear scored badly
-against a Karthus or Shyvana and a poor one scored well against a Rammus — neither of
-which says anything about the jungler. It now blends the counterpart comparison with the
-role baseline, the way deaths, vision, objectives and damage already did. Out-farming your
+**Every component is anchored to a role baseline, not only to your counterpart.** Farm
+comparisons were the last ones graded purely head-to-head, which made them a verdict on
+who the *other* team picked: a good jungle clear scored badly against a Karthus, and an
+Ezreal on 6.7 cs/min scored 34 opposite a Jinx on 10.7 for a number only a little under
+par — the identical game opposite a Draven would have scored well. Jungle farm, ADC
+farming and mid wave control now all blend the counterpart comparison with the role
+baseline, the way deaths, vision, objectives and damage already did. Out-farming your
 opposite number still counts; champion select no longer decides the component on its own.
+
+**This is also a note on how these get fixed.** Jungle farm was corrected on its own
+first, leaving the other two broken in exactly the same way for exactly the same reason.
+A test now walks the source for cs comparisons that aren't inside a blend, so the next one
+can't be missed.
 
 Also: jungle CS is **monsters, not camps** — Riot's own field is `enemyJungleMonsterKills`,
 and a full six-camp clear is about eighteen of them. The card used to say "100 camps @14",

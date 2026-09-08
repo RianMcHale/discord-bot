@@ -96,3 +96,42 @@ test('a game with no kills at all does not crash or score zero', () => {
   assert.ok(Number.isFinite(scored.p2.composite));
   assert.equal(scored.p2.context.killShare, null);
 });
+
+// Farming was the last component graded purely head-to-head. An Ezreal on 6.7
+// cs/min opposite a Jinx on 10.7 scored 34 for a number only a little under par,
+// and the identical game opposite a Draven would have scored well.
+test('an ADC’s farming is not a verdict on who the enemy ADC picked', () => {
+  const farmingAgainst = (theirCs) => {
+    const match = plainMatch({ durationSeconds: 41 * 60 });
+    const mine = match.info.participants.find((p) => p.participantId === 4);
+    const theirs = match.info.participants.find((p) => p.participantId === 9);
+    mine.totalMinionsKilled = Math.round(6.7 * 41);
+    theirs.totalMinionsKilled = Math.round(theirCs * 41);
+    const scored = scoreMatch(match, { timeline: null, trackedPuuids: [] });
+    return scored.p4.components.find((c) => c.key === 'economy').score;
+  };
+
+  const vsFarmHeavy = farmingAgainst(10.7);
+  const vsLowFarm = farmingAgainst(4.5);
+
+  assert.ok(vsFarmHeavy > 38, `6.7 cs/min is under par, not a disaster (${vsFarmHeavy})`);
+  assert.ok(vsLowFarm > vsFarmHeavy, 'out-farming them still counts');
+  assert.ok(vsLowFarm - vsFarmHeavy < 30, 'but the opponent alone must not decide it');
+});
+
+test('every cs comparison in the model is anchored to a baseline', async () => {
+  // Jungle farm, mid wave control and ADC farming all compared cs only to the
+  // counterpart. Fixing them one at a time is how two of the three stayed broken.
+  const src = await import('node:fs').then((fs) =>
+    fs.readFileSync(new URL('../src/scoring/roles.js', import.meta.url), 'utf-8')
+  );
+  const bare = src.split('\n').filter((l) => /versus\(P\.csPerMin, opp\.csPerMin/.test(l) && !/blend\(/.test(l));
+  // Each surviving one must sit inside a blend, which spans lines, so check the
+  // preceding line opens one.
+  const lines = src.split('\n');
+  for (const line of bare) {
+    const i = lines.indexOf(line);
+    const context = lines.slice(Math.max(0, i - 2), i + 4).join('\n');
+    assert.match(context, /blend\(/, `unanchored cs comparison:\n${context}`);
+  }
+});

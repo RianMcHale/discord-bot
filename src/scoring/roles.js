@@ -34,7 +34,10 @@ export const BASELINE = {
   // a jungler who kept farming between plays.
   JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
   MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
+  // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
+  // above: it is only used as the second anchor in a blend, so being roughly
+  // right beats having no anchor at all.
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
   UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4 },
   UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
@@ -622,7 +625,19 @@ function scoreMid(P, ctx) {
 
   const tempo = {
     score: weightedMean([
-      { score: pressureAdjusted(opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null, P, 3), weight: 0.6 },
+      {
+        // Anchored to the baseline as well, as everywhere else.
+        score: pressureAdjusted(
+          blend(
+            opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null,
+            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 }),
+            0.55
+          ),
+          P,
+          3
+        ),
+        weight: 0.6
+      },
       { score: visionComponent(P, ctx, b).score, weight: 0.4 }
     ]),
     detail: `${P.csPerMin.toFixed(1)} cs/min · ${P.visionPerMin.toFixed(2)} vis/min`
@@ -654,8 +669,27 @@ function scoreAdc(P, ctx) {
   const economy = {
     score: pressureAdjusted(
       weightedMean([
-        { score: opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.5 }) : null, weight: 0.6 },
-        { score: opp ? versus(P.goldPerMin, opp.goldPerMin, { prior: 120, gain: 1.4 }) : null, weight: 0.4 }
+        // Anchored to the role baseline as well as the counterpart, the same way
+        // jungle farm is. Pure head-to-head made this a verdict on who the enemy
+        // ADC picked: an Ezreal opposite a Jinx on 10.7 cs/min scores 34 for a
+        // 6.7 that is only a little under par, and the same 6.7 opposite a
+        // Draven would have scored well.
+        {
+          score: blend(
+            opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.5 }) : null,
+            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.5 }),
+            0.55
+          ),
+          weight: 0.6
+        },
+        {
+          score: blend(
+            opp ? versus(P.goldPerMin, opp.goldPerMin, { prior: 120, gain: 1.4 }) : null,
+            versus(P.goldPerMin, b.goldPerMin, { prior: 120, gain: 1.4 }),
+            0.55
+          ),
+          weight: 0.4
+        }
       ]),
       P,
       3
