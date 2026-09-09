@@ -33,7 +33,7 @@ export const BASELINE = {
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
   // a jungler who kept farming between plays.
   JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
-  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
+  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
   // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
   // above: it is only used as the second anchor in a blend, so being roughly
   // right beats having no anchor at all.
@@ -295,7 +295,7 @@ function combatComponent(
  * It's high for junglers (that is their job) and low for everyone else, who can
  * only show up for what gets started.
  */
-function objectiveComponent(P, ctx, baseline, { controlShare = 0.3 } = {}) {
+function objectiveComponent(P, ctx, baseline, { controlShare = 0.3, turretShare = 0.15 } = {}) {
   const opp = opponentOf(P, ctx);
 
   // Against the counterpart first: "did you show up for objectives more than the
@@ -311,12 +311,19 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3 } = {}) {
   const involvement = blend(vsOpp, shareScore, 0.55);
 
   const controlScore = P.teamEpicControl == null ? null : clamp(50 + (P.teamEpicControl - 0.5) * 100 * 1.2, 0, 100);
-  const turretScore = opp ? versus(P.turretDamage, opp.turretDamage, { prior: 1500, gain: 1.3 }) : null;
+  // Anchored like every other comparison, where a baseline exists for the role.
+  const turretScore = blend(
+    opp ? versus(P.turretDamage, opp.turretDamage, { prior: 1500, gain: 1.3 }) : null,
+    baseline.turretDmgPerMin
+      ? versus(P.turretDamage, baseline.turretDmgPerMin * ctx.minutes, { prior: 1500, gain: 1.3 })
+      : null,
+    0.55
+  );
 
   let score = weightedMean([
-    { score: involvement, weight: 1 - controlShare - 0.15 },
+    { score: involvement, weight: Math.max(0, 1 - controlShare - turretShare) },
     { score: controlScore, weight: controlShare },
-    { score: turretScore, weight: 0.15 }
+    { score: turretScore, weight: turretShare }
   ]);
   if (P.epicSteals > 0) score = clamp(score + Math.min(P.epicSteals, 2) * 3, 0, 100);
 
@@ -664,7 +671,7 @@ function scoreMid(P, ctx) {
       component('roam', 'Roaming', 18, roam.score, roam.detail),
       component('deaths', 'Deaths', 16, ...pick(deathComponent(P, ctx, b))),
       component('tempo', 'Wave/vision', 10, tempo.score, tempo.detail),
-      component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.25 })))
+      component('objectives', 'Objectives', 8, ...pick(objectiveComponent(P, ctx, b, { controlShare: 0.25, turretShare: 0.45 })))
     ]
   };
 }

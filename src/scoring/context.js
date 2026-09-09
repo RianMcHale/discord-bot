@@ -64,6 +64,9 @@ const INVADE_DEATH_CAMPS = 2;
 // evidenced — see the note where it is used.
 const ANSWER_CREDIT = 0.6;
 const TURRET_VALUE = { OUTER_TURRET: 0.6, INNER_TURRET: 0.9, BASE_TURRET: 1.1, NEXUS_TURRET: 1.3 };
+// An inhibitor is worth more than the tower in front of it: it opens super
+// minions and is usually what ends a game.
+const INHIBITOR_VALUE = 1.5;
 
 /** Which half of the map an objective sits on. Mid trades against either side. */
 function objectiveSide(ev) {
@@ -362,8 +365,8 @@ export function buildContext(match, timeline = null) {
   }
 
   const teams = {
-    100: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null },
-    200: { epicWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null }
+    100: { epicWeighted: 0, structureWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null },
+    200: { epicWeighted: 0, structureWeighted: 0, kills: 0, lateKills: 0, laneGold14: 0, tookSoul: false, soulAt: null }
   };
   for (const p of players) teams[p.teamId].kills += p.kills;
 
@@ -763,6 +766,20 @@ export function buildContext(match, timeline = null) {
       if (isElder) p.elderCredits += EPIC_WEIGHT.ELDER_DRAGON - EPIC_WEIGHT.DRAGON;
     }
   }
+
+  // --- structures -----------------------------------------------------------
+  // Towers and inhibitors, valued on the same scale as the monsters, because
+  // they are how a game is actually closed out. `teamId` on a BUILDING_KILL is
+  // the team that *owned* the building, so the credit goes to the other side.
+  for (const ev of events) {
+    if (ev.type !== 'BUILDING_KILL') continue;
+    const owner = ev.teamId;
+    const taker = owner === 100 ? 200 : owner === 200 ? 100 : null;
+    if (!taker || !teams[taker]) continue;
+    teams[taker].structureWeighted +=
+      ev.buildingType === 'INHIBITOR_BUILDING' ? INHIBITOR_VALUE : TURRET_VALUE[ev.towerType] ?? 0.6;
+  }
+
   for (const p of players) {
     const mine = teams[p.teamId];
     const them = teams[p.teamId === 100 ? 200 : 100];
@@ -785,7 +802,14 @@ export function buildContext(match, timeline = null) {
     const credits = base + soulShare;
 
     p.epicShare = own > 0 ? clamp(credits / own, 0, 1) : null;
-    p.teamEpicControl = own + other > 0 ? own / (own + other) : null;
+    // Structures count toward map control, not just epic monsters. Towers and
+    // inhibitors are how a game is actually closed out, and leaving them out
+    // read a 27-minute surrender win — ten towers and two inhibitors against
+    // six and one, on an even 2-2 dragon count — as "team held 50%". A team that
+    // wins by pushing was getting no credit for controlling anything.
+    const mineAll = own + (mine.structureWeighted || 0);
+    const otherAll = other + (them.structureWeighted || 0);
+    p.teamEpicControl = mineAll + otherAll > 0 ? mineAll / (mineAll + otherAll) : null;
   }
 
   // --- cross-map objective trades -------------------------------------------

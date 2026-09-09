@@ -121,3 +121,47 @@ test('soul needs a timeline and degrades quietly without one', () => {
   assert.equal(scored.p2.context.tookSoul, false);
   assert.ok(Number.isFinite(scored.p2.composite));
 });
+
+// A 27-minute surrender win — ten towers and two inhibitors against six and one,
+// on an even 2-2 dragon count — read as "team held 50%". Towers and inhibitors
+// are how a game is actually closed out; leaving them out meant a team that won
+// by pushing got no credit for controlling anything.
+test('towers and inhibitors count toward map control, not just epic monsters', () => {
+  const withStructures = (mine, theirs) => {
+    const s = campedTopScenario({ durationMinutes: 27 });
+    s.timeline.info.frames.forEach((f) => {
+      f.events = f.events.filter((e) => e.type !== 'ELITE_MONSTER_KILL' && e.type !== 'BUILDING_KILL');
+    });
+    // One dragon each, so epics are dead level and only structures differ.
+    s.timeline.info.frames[9].events.push({ timestamp: 540000, type: 'ELITE_MONSTER_KILL', killerId: 2, killerTeamId: 100, monsterType: 'DRAGON', monsterSubType: 'FIRE_DRAGON', assistingParticipantIds: [] });
+    s.timeline.info.frames[14].events.push({ timestamp: 840000, type: 'ELITE_MONSTER_KILL', killerId: 7, killerTeamId: 200, monsterType: 'DRAGON', monsterSubType: 'EARTH_DRAGON', assistingParticipantIds: [] });
+    // `teamId` on a building kill is the team that OWNED it, so these are towers lost.
+    const tower = (m, owner) =>
+      s.timeline.info.frames[m].events.push({
+        timestamp: m * 60000, type: 'BUILDING_KILL', teamId: owner,
+        buildingType: 'TOWER_BUILDING', towerType: 'OUTER_TURRET', laneType: 'MID_LANE', killerId: owner === 200 ? 3 : 8
+      });
+    for (let i = 0; i < mine; i++) tower(16 + i, 200); // team 100 takes them
+    for (let i = 0; i < theirs; i++) tower(16 + i, 100);
+    return scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] }).p3.context.teamEpicControl;
+  };
+
+  assert.equal(withStructures(0, 0), 50, 'level epics and no towers is level');
+  assert.ok(withStructures(8, 2) > 65, 'taking the map has to register');
+  assert.ok(withStructures(2, 8) < 35, 'and losing it has to cost');
+});
+
+test('a mid laner is credited for the towers they take', () => {
+  // Locke did 19,096 turret damage to his counterpart's 4,644 and took six
+  // towers, which is what forced the surrender. That was worth 1.2% of a mid's
+  // grade, where top gets 15% and the ADC 12% for the same work.
+  const withTurretDamage = (dmg) => {
+    const s = campedTopScenario({ durationMinutes: 27 });
+    s.match.info.participants.find((p) => p.participantId === 3).damageDealtToTurrets = dmg;
+    return scoreMatch(s.match, { timeline: s.timeline, trackedPuuids: [] })
+      .p3.components.find((c) => c.key === 'objectives').score;
+  };
+  const quiet = withTurretDamage(3000);
+  const pushed = withTurretDamage(19000);
+  assert.ok(pushed > quiet + 8, `taking towers should show for a mid (${quiet} -> ${pushed})`);
+});

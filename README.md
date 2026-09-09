@@ -112,6 +112,17 @@ Net pressure then:
 - **credits the enemy jungler** who created the pressure, and **debits your own jungler**
   for every commitment they left unanswered.
 
+**Towers and inhibitors are objectives too.** Map control counted epic monsters only, so a
+27-minute surrender win — ten towers and two inhibitors against six and one, on an even
+2-2 dragon count — read as "team held 50%". A team that wins by pushing was getting no
+credit for controlling anything. Structures now count on the same scale as the monsters,
+with an inhibitor worth more than the tower in front of it.
+
+And **a mid laner is credited for taking them.** Turret work is 15% of Top's Side lane and
+55% of the ADC's Objectives, but for mid it was 15% of an 8-point component — **1.2% of
+the grade**. A mid who did 19k turret damage against his counterpart's 4.6k and took six
+towers, which is what forced that surrender, was scored as though it never happened.
+
 **Dragon Soul is weighted as the game-deciding objective it is.** Objectives are valued
 rather than counted — a void grub is worth about a third of a drake, Baron 1.5, Elder 2 —
 but the fourth drake counted exactly the same as the first, so a team that took Soul and a
