@@ -217,7 +217,7 @@ function deathComponent(P, ctx, baseline) {
     (tags.solo ? ` · ${tags.solo} solo` : '') +
     (tags.ganked ? ` · ${tags.ganked} ganked` : '') +
     (tags.teamfight ? ` · ${tags.teamfight} in fights` : '');
-  return { score: blend(vsOpp, vsBase, 0.55), detail };
+  return { score: blend(vsOpp, vsBase), detail };
 }
 
 /**
@@ -259,8 +259,7 @@ function combatComponent(
       ? null
       : blend(
           opp && opp.killShare != null ? versus(P.killShare, opp.killShare, { prior: 0.06, gain: 1.25 }) : null,
-          versusShare(P.killShare, baseline.killShare, { full: 1.0 }),
-          0.45
+          versusShare(P.killShare, baseline.killShare, { full: 1.0 })
         );
 
   // Were you in the fights that decided the game. Damage share is a whole-game
@@ -308,7 +307,7 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3, turretShare 
     const confidence = clamp(P.teamEpicWeighted / 4, 0, 1);
     shareScore = 50 + (shareScore - 50) * confidence;
   }
-  const involvement = blend(vsOpp, shareScore, 0.55);
+  const involvement = blend(vsOpp, shareScore);
 
   const controlScore = P.teamEpicControl == null ? null : clamp(50 + (P.teamEpicControl - 0.5) * 100 * 1.2, 0, 100);
   // Anchored like every other comparison, where a baseline exists for the role.
@@ -316,8 +315,7 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3, turretShare 
     opp ? versus(P.turretDamage, opp.turretDamage, { prior: 1500, gain: 1.3 }) : null,
     baseline.turretDmgPerMin
       ? versus(P.turretDamage, baseline.turretDmgPerMin * ctx.minutes, { prior: 1500, gain: 1.3 })
-      : null,
-    0.55
+      : null
   );
 
   let score = weightedMean([
@@ -358,7 +356,7 @@ function visionComponent(P, ctx, baseline) {
   const clearScore = opp ? versus(P.wardTakedownsPerMin, opp.wardTakedownsPerMin, { prior: 0.12, gain: 1.3 }) : null;
 
   const score = weightedMean([
-    { score: blend(vsOpp, vsBase, 0.6), weight: 0.5 },
+    { score: blend(vsOpp, vsBase), weight: 0.5 },
     { score: cwScore, weight: 0.25 },
     { score: clearScore, weight: 0.25 }
   ]);
@@ -505,8 +503,7 @@ function scoreTop(P, ctx) {
         {
           score: blend(
             opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2000, gain: 1.3 }) : null,
-            versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2000, gain: 1.3 }),
-            0.55
+            versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2000, gain: 1.3 })
           ),
           weight: 0.35
         },
@@ -577,16 +574,14 @@ function scoreJungle(P, ctx) {
       {
         score: blend(
           opp ? versus(P.jungleCs14, opp.jungleCs14, { prior: 8, gain: 1.4 }) : null,
-          versus(P.jungleCs14, clearBar, { prior: 8, gain: 1.4 }),
-          0.55
+          versus(P.jungleCs14, clearBar, { prior: 8, gain: 1.4 })
         ),
         weight: 0.55
       },
       {
         score: blend(
           opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null,
-          versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 }),
-          0.55
+          versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 })
         ),
         weight: 0.45
       }
@@ -659,8 +654,7 @@ function scoreMid(P, ctx) {
         score: pressureAdjusted(
           blend(
             opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.4 }) : null,
-            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 }),
-            0.55
+            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.4 })
           ),
           P,
           3
@@ -706,16 +700,14 @@ function scoreAdc(P, ctx) {
         {
           score: blend(
             opp ? versus(P.csPerMin, opp.csPerMin, { prior: 1.5, gain: 1.5 }) : null,
-            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.5 }),
-            0.55
+            versus(P.csPerMin, b.csPerMin, { prior: 1.5, gain: 1.5 })
           ),
           weight: 0.6
         },
         {
           score: blend(
             opp ? versus(P.goldPerMin, opp.goldPerMin, { prior: 120, gain: 1.4 }) : null,
-            versus(P.goldPerMin, b.goldPerMin, { prior: 120, gain: 1.4 }),
-            0.55
+            versus(P.goldPerMin, b.goldPerMin, { prior: 120, gain: 1.4 })
           ),
           weight: 0.4
         }
@@ -735,8 +727,7 @@ function scoreAdc(P, ctx) {
         // ADC's pick alone.
         score: blend(
           opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2500, gain: 1.3 }) : null,
-          versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2500, gain: 1.3 }),
-          0.55
+          versus(P.turretDamage, b.turretDmgPerMin * ctx.minutes, { prior: 2500, gain: 1.3 })
         ),
         weight: 0.55
       },
@@ -781,13 +772,11 @@ function scoreSupport(P, ctx) {
   // would have scored around 50 for an identical game.
   const ccScore = blend(
     opp ? versus(P.ccScore, opp.ccScore, { prior: 15, gain: 1.35 }) : null,
-    versus(P.ccScore, b.ccScore, { prior: 15, gain: 1.35 }),
-    0.4
+    versus(P.ccScore, b.ccScore, { prior: 15, gain: 1.35 })
   );
   const healScore = blend(
     opp ? versus(P.healShieldPerMin, opp.healShieldPerMin, { prior: 120, gain: 1.35 }) : null,
-    versus(P.healShieldPerMin, b.healShield, { prior: 120, gain: 1.35 }),
-    0.4
+    versus(P.healShieldPerMin, b.healShield, { prior: 120, gain: 1.35 })
   );
   const saveScore = opp ? versus(P.savesPerGame, opp.savesPerGame, { prior: 1.2, gain: 1.3 }) : null;
   // Leaving a won bot lane to make things happen elsewhere is the support's job,

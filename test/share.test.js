@@ -58,3 +58,26 @@ test('it stays inside 0-100 at any input', () => {
     assert.ok(v >= 0 && v <= 100, `${mine} produced ${v}`);
   }
 });
+
+// β (spec §5.4.3) is how much of a metric is "did you beat your counterpart"
+// versus "did you play well". The squad chose the latter, against the spec's
+// 0.70 default.
+test('β is set to weight playing well over winning the matchup', async () => {
+  const { DIFFERENTIAL_WEIGHT, blend } = await import('../src/scoring/scale.js');
+  assert.ok(DIFFERENTIAL_WEIGHT < 0.5, 'absolute performance should be the larger share');
+  assert.ok(DIFFERENTIAL_WEIGHT > 0, 'but the matchup still has to count for something');
+
+  // A player who beat a weak counterpart while playing poorly in absolute terms
+  // should land nearer the absolute reading than the differential one.
+  const flatteredByMatchup = blend(90, 40);
+  assert.ok(flatteredByMatchup < 60, `beating a bad opponent badly should not read as good (${flatteredByMatchup})`);
+});
+
+test('no rubric sets its own β behind the shared one’s back', async () => {
+  // One dial, in one place. A call site quietly passing its own number is how a
+  // values decision turns back into scattered magic numbers.
+  const src = await import('node:fs').then((fs) =>
+    fs.readFileSync(new URL('../src/scoring/roles.js', import.meta.url), 'utf-8')
+  );
+  assert.doesNotMatch(src, /blend\([^)]*,\s*0\.\d+\s*\)/s, 'blend should take the shared β');
+});

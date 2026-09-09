@@ -11,3 +11,7 @@ data/
 .DS_Store
 Thumbs.db
 *.log
+
+# Calibration sample: large, regenerable, and specific to one API key.
+data/calibration/
+

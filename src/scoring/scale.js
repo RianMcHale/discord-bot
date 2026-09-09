@@ -89,8 +89,23 @@ export function weightedMean(components) {
   return usable.reduce((s, c) => s + c.score * c.weight, 0) / totalWeight;
 }
 
-/** Blend a head-to-head score with a baseline score. */
-export function blend(vsCounterpart, vsBaseline, headToHeadShare = 0.65) {
+/**
+ * How much of a metric is "did you beat your counterpart" versus "did you play
+ * well" — the β term in the audit spec's §5.4.3.
+ *
+ * The spec defaults to 0.70, which is mostly matchup. The squad chose the
+ * opposite: the score should say whether you played well, with the matchup as
+ * context rather than as the verdict. At 0.35 a blended metric is roughly
+ * two-thirds absolute.
+ *
+ * Not zero, deliberately. Keeping some differential is what stops a laner who
+ * drew a smurf, or whose counterpart went AFK, from being judged as though the
+ * lane were neutral — which is the case the counterpart comparison exists for.
+ */
+export const DIFFERENTIAL_WEIGHT = 0.35;
+
+/** Blend a head-to-head score with a baseline score. `headToHeadShare` is β. */
+export function blend(vsCounterpart, vsBaseline, headToHeadShare = DIFFERENTIAL_WEIGHT) {
   const a = Number.isFinite(vsCounterpart) ? vsCounterpart : null;
   const b = Number.isFinite(vsBaseline) ? vsBaseline : null;
   if (a === null) return b;
