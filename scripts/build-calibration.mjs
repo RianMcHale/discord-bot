@@ -30,6 +30,22 @@ const OUT = path.join(ROOT, 'config', 'calibration.json');
 // enough games. This is the line below which a role's numbers are advisory.
 const MIN_ROWS_PER_ROLE = 150;
 
+// Patch window (spec §7.3). A snowballed sample reaches back through a player's
+// whole match history, so it spans patches the current game no longer resembles —
+// the first pull returned rows from 16.2 through 16.17. Pooling those produces a
+// baseline for a game nobody is playing.
+//
+// PATCH_MIN is the oldest patch admitted. Set it to the oldest patch since the
+// last meta break; the spec's §13 `meta_breaks` is the same idea, and note its
+// values are written as 26.x where Riot actually reports 16.x — Riot numbers
+// patches by season, not calendar year.
+const PATCH_MIN = process.env.PATCH_MIN || '16.13';
+
+const patchRank = (p) => {
+  const [maj, min] = String(p || '').split('.').map(Number);
+  return Number.isFinite(maj) && Number.isFinite(min) ? maj * 100 + min : -1;
+};
+
 const ROLES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 
 // Every field the rubrics compare against a baseline, and how it is used.
@@ -69,7 +85,7 @@ if (!fs.existsSync(ROWS)) {
   process.exit(1);
 }
 
-const rows = fs
+const allRows = fs
   .readFileSync(ROWS, 'utf-8')
   .split('\n')
   .filter(Boolean)
@@ -81,6 +97,10 @@ const rows = fs
     }
   })
   .filter(Boolean);
+
+const minRank = patchRank(PATCH_MIN);
+const rows = allRows.filter((r) => patchRank(r.patch) >= minRank);
+const droppedForPatch = allRows.length - rows.length;
 
 const matches = new Set(rows.map((r) => r.matchId));
 const patches = {};
@@ -117,7 +137,8 @@ const artifact = {
     participantRows: rows.length,
     patches,
     queues,
-    minRowsPerRole: MIN_ROWS_PER_ROLE
+    minRowsPerRole: MIN_ROWS_PER_ROLE,
+    patchWindow: { min: PATCH_MIN, rowsDroppedAsTooOld: droppedForPatch }
   },
   // Any role below the floor is advisory: the numbers are emitted so they can be
   // inspected, not so they can be trusted.
@@ -137,7 +158,7 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(artifact, null, 2));
 
 console.log(`Wrote config/calibration.json  (version ${artifact.calibrationVersion})`);
-console.log(`  ${matches.size} matches, ${rows.length} participant rows`);
+console.log(`  ${matches.size} matches, ${rows.length} participant rows (patch >= ${PATCH_MIN}; dropped ${droppedForPatch} older rows)`);
 console.log(`  patches: ${Object.entries(patches).map(([k, v]) => `${k}=${v}`).join(', ')}`);
 console.log(`  provisional: ${artifact.provisional}`);
 console.log('');
