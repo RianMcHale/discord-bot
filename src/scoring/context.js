@@ -29,8 +29,11 @@ const EPIC_WEIGHT = {
   ELDER_DRAGON: 2,
   RIFTHERALD: 1,
   BARON_NASHOR: 1.5,
-  HORDE: 0.34,
-  ATAKHAN: 1.5
+  HORDE: 0.34
+  // ATAKHAN was here. It was removed from Summoner's Rift for the 2026 season,
+  // and the schema probe saw zero ATAKHAN events across 45 matches on 16.16-16.17.
+  // epicWeight() falls back to 1 for any unrecognised monster, so a future
+  // objective still scores rather than crashing.
 };
 
 // Dragon Soul was worth nothing. The fourth drake granted a permanent teamwide
@@ -281,6 +284,12 @@ export function buildContext(match, timeline = null) {
         (ch.baronTakedowns || 0) * 1.5 +
         ((ch.voidMonsterKill || 0) + (ch.hordeKills || 0)) * 0.34,
       platesTaken: ch.turretPlatesTaken ?? 0,
+      // Split by phase below when a timeline exists; without one the phase is
+      // unknowable and platesPhaseKnown stays false so no rubric treats the
+      // whole-game total as a laning result.
+      platesEarly: 0,
+      platesLate: 0,
+      platesPhaseKnown: false,
       soloKills: ch.soloKills ?? 0,
       counterJungleCs: ch.enemyJungleMonsterKills ?? 0,
       epicSteals: (ch.epicMonsterSteals ?? 0) + (p.objectivesStolen ?? 0),
@@ -731,9 +740,21 @@ export function buildContext(match, timeline = null) {
     j.alliesUnanswered = Math.max(0, debt - ANSWER_CREDIT * credit);
   }
 
+  // Riot emits DRAGON_SOUL_GIVEN directly — the schema probe found 50 of them
+  // across 45 matches. Counting to the fourth drake ourselves was an inference
+  // standing in for a fact, and it would have been wrong the moment Riot changed
+  // the threshold or granted a soul any other way. The count still runs as a
+  // fallback for matches whose timeline lacks the event.
+  const soulByTeam = new Map();
+  for (const ev of events) {
+    if (ev.type !== 'DRAGON_SOUL_GIVEN') continue;
+    const teamId = ev.teamId ?? byId.get(ev.killerId)?.teamId;
+    if (teams[teamId] && !soulByTeam.has(teamId)) soulByTeam.set(teamId, ev.timestamp);
+  }
+
   // --- epic objectives ------------------------------------------------------
   // `events` is built by flattening frames in order, so this walks the game
-  // chronologically — which the soul count depends on.
+  // chronologically — which the soul fallback count depends on.
   const drakes = { 100: 0, 200: 0 };
   for (const ev of events) {
     if (ev.type !== 'ELITE_MONSTER_KILL') continue;
@@ -746,10 +767,14 @@ export function buildContext(match, timeline = null) {
     // Elders spawn only after a soul has been taken and never count toward one.
     if (ev.monsterType === 'DRAGON' && !isElder) {
       drakes[teamId] += 1;
-      if (drakes[teamId] === SOUL_DRAGONS) {
+      // Riot's own event wins where it exists; the drake count is the fallback.
+      const soulHere = soulByTeam.size
+        ? soulByTeam.has(teamId) && !teams[teamId].tookSoul && drakes[teamId] >= SOUL_DRAGONS
+        : drakes[teamId] === SOUL_DRAGONS;
+      if (soulHere) {
         w += SOUL_BONUS;
         teams[teamId].tookSoul = true;
-        teams[teamId].soulAt = ev.timestamp;
+        teams[teamId].soulAt = soulByTeam.get(teamId) ?? ev.timestamp;
       }
     }
 
@@ -886,14 +911,31 @@ export function buildContext(match, timeline = null) {
     p.lateKp = teamLate >= 4 ? clamp(lateCredits.get(p.participantId) / teamLate, 0, 1) : null;
   }
 
-  // --- plates from timeline (challenges field is missing on older matches) ---
-  const plateCounts = new Map(players.map((p) => [p.participantId, 0]));
+  // --- plates, split by phase ------------------------------------------------
+  // `challenges.turretPlatesTaken` is a whole-game total and no longer means
+  // "won lane". The schema probe measured it across 45 matches: 1683 of 2381
+  // plate events — 70.7% — happen *after* 14:00, because plates now persist and
+  // tier 2 and 3 turrets carry them too. Using the total as a laning signal is
+  // therefore measuring split-pushing, which is a different thing done at a
+  // different time by different champions.
+  //
+  // So they are counted separately. `platesEarly` is the laning metric;
+  // `platesLate` is map pressure. The challenges total is kept as a fallback for
+  // matches with no timeline, where the split is unknowable — flagged by
+  // `platesPhaseKnown` so a rubric can decline to use it as a lane signal.
+  const early = new Map(players.map((p) => [p.participantId, 0]));
+  const late = new Map(players.map((p) => [p.participantId, 0]));
   for (const ev of events) {
     if (ev.type !== 'TURRET_PLATE_DESTROYED') continue;
-    if (plateCounts.has(ev.killerId)) plateCounts.set(ev.killerId, plateCounts.get(ev.killerId) + 1);
+    const bucket = ev.timestamp < LANE_PHASE_MS ? early : late;
+    if (bucket.has(ev.killerId)) bucket.set(ev.killerId, bucket.get(ev.killerId) + 1);
   }
   for (const p of players) {
-    p.platesTaken = Math.max(p.platesTaken || 0, plateCounts.get(p.participantId) || 0);
+    p.platesEarly = early.get(p.participantId) ?? 0;
+    p.platesLate = late.get(p.participantId) ?? 0;
+    p.platesPhaseKnown = true;
+    // Kept for the detail line and for anything that genuinely wants the total.
+    p.platesTaken = Math.max(p.platesTaken || 0, p.platesEarly + p.platesLate);
   }
 
   return ctx;

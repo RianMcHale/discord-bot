@@ -1,0 +1,3059 @@
+{
+  "generatedAt": "2026-09-09T18:47:11.951Z",
+  "sample": {
+    "matchesRequested": 45,
+    "matchesProbed": 45,
+    "matchesWithTimeline": 45,
+    "participantRows": 450,
+    "participantRowsWithChallenges": 450,
+    "challengesMissingRate": 0
+  },
+  "queueIds": {
+    "400": 10,
+    "420": 34,
+    "440": 1
+  },
+  "gameVersions": {
+    "16.17": 32,
+    "16.16": 13
+  },
+  "frameIntervals": {
+    "60000": 45
+  },
+  "enums": {
+    "monsterType": {
+      "DRAGON": 159,
+      "HORDE": 129,
+      "RIFTHERALD": 40,
+      "BARON_NASHOR": 37
+    },
+    "monsterSubType": {
+      "AIR_DRAGON": 33,
+      "WATER_DRAGON": 30,
+      "EARTH_DRAGON": 28,
+      "CHEMTECH_DRAGON": 24,
+      "FIRE_DRAGON": 21,
+      "HEXTECH_DRAGON": 20,
+      "ELDER_DRAGON": 3
+    },
+    "buildingType": {
+      "TOWER_BUILDING": 501,
+      "INHIBITOR_BUILDING": 67
+    },
+    "towerType": {
+      "OUTER_TURRET": 220,
+      "INNER_TURRET": 132,
+      "BASE_TURRET": 75,
+      "NEXUS_TURRET": 74
+    },
+    "laneType": {
+      "MID_LANE": 1162,
+      "BOT_LANE": 914,
+      "TOP_LANE": 873
+    },
+    "killType": {
+      "KILL_MULTI": 319,
+      "KILL_ACE": 44,
+      "KILL_FIRST_BLOOD": 43
+    },
+    "wardType": {
+      "YELLOW_TRINKET": 2644,
+      "SIGHT_WARD": 2261,
+      "UNDEFINED": 1804,
+      "CONTROL_WARD": 954,
+      "BLUE_TRINKET": 406,
+      "TEEMO_MUSHROOM": 157
+    },
+    "teamPosition": {
+      "TOP": 90,
+      "JUNGLE": 90,
+      "MIDDLE": 90,
+      "BOTTOM": 90,
+      "UTILITY": 90
+    },
+    "individualPosition": {
+      "TOP": 90,
+      "JUNGLE": 90,
+      "MIDDLE": 90,
+      "BOTTOM": 90,
+      "UTILITY": 90
+    },
+    "lane": {
+      "BOTTOM": 135,
+      "JUNGLE": 119,
+      "NONE": 100,
+      "MIDDLE": 67,
+      "TOP": 29
+    },
+    "role": {
+      "SUPPORT": 160,
+      "NONE": 119,
+      "SOLO": 89,
+      "CARRY": 68,
+      "DUO": 14
+    }
+  },
+  "eventTypes": {
+    "ITEM_PURCHASED": {
+      "count": 9278,
+      "keys": {
+        "itemId": 9278,
+        "participantId": 9278,
+        "timestamp": 9278,
+        "type": 9278
+      }
+    },
+    "ITEM_DESTROYED": {
+      "count": 8947,
+      "keys": {
+        "itemId": 8947,
+        "participantId": 8947,
+        "timestamp": 8947,
+        "type": 8947
+      }
+    },
+    "WARD_PLACED": {
+      "count": 6825,
+      "keys": {
+        "creatorId": 6825,
+        "timestamp": 6825,
+        "type": 6825,
+        "wardType": 6825
+      }
+    },
+    "SKILL_LEVEL_UP": {
+      "count": 6280,
+      "keys": {
+        "levelUpType": 6280,
+        "participantId": 6280,
+        "skillSlot": 6280,
+        "timestamp": 6280,
+        "type": 6280
+      }
+    },
+    "LEVEL_UP": {
+      "count": 5782,
+      "keys": {
+        "level": 5782,
+        "participantId": 5782,
+        "timestamp": 5782,
+        "type": 5782
+      }
+    },
+    "CHAMPION_KILL": {
+      "count": 2682,
+      "keys": {
+        "bounty": 2682,
+        "killStreakLength": 2682,
+        "killerId": 2682,
+        "position": 2682,
+        "shutdownBounty": 2682,
+        "timestamp": 2682,
+        "type": 2682,
+        "victimDamageReceived": 2682,
+        "victimId": 2682,
+        "victimTeamfightDamageReceived": 2682,
+        "victimTeamfightDamageDealt": 2532,
+        "victimDamageDealt": 2469,
+        "assistingParticipantIds": 2025
+      }
+    },
+    "TURRET_PLATE_DESTROYED": {
+      "count": 2381,
+      "keys": {
+        "killerId": 2381,
+        "laneType": 2381,
+        "position": 2381,
+        "teamId": 2381,
+        "timestamp": 2381,
+        "type": 2381
+      }
+    },
+    "WARD_KILL": {
+      "count": 1401,
+      "keys": {
+        "killerId": 1401,
+        "timestamp": 1401,
+        "type": 1401,
+        "wardType": 1401
+      }
+    },
+    "BUILDING_KILL": {
+      "count": 568,
+      "keys": {
+        "bounty": 568,
+        "buildingType": 568,
+        "killerId": 568,
+        "laneType": 568,
+        "position": 568,
+        "teamId": 568,
+        "timestamp": 568,
+        "type": 568,
+        "towerType": 501,
+        "assistingParticipantIds": 284
+      }
+    },
+    "CHAMPION_SPECIAL_KILL": {
+      "count": 406,
+      "keys": {
+        "killType": 406,
+        "killerId": 406,
+        "position": 406,
+        "timestamp": 406,
+        "type": 406,
+        "multiKillLength": 319
+      }
+    },
+    "ITEM_UNDO": {
+      "count": 376,
+      "keys": {
+        "afterId": 376,
+        "beforeId": 376,
+        "goldGain": 376,
+        "participantId": 376,
+        "timestamp": 376,
+        "type": 376
+      }
+    },
+    "ELITE_MONSTER_KILL": {
+      "count": 365,
+      "keys": {
+        "bounty": 365,
+        "killerId": 365,
+        "killerTeamId": 365,
+        "monsterType": 365,
+        "position": 365,
+        "timestamp": 365,
+        "type": 365,
+        "assistingParticipantIds": 194,
+        "monsterSubType": 159
+      }
+    },
+    "ITEM_SOLD": {
+      "count": 288,
+      "keys": {
+        "itemId": 288,
+        "participantId": 288,
+        "timestamp": 288,
+        "type": 288
+      }
+    },
+    "DRAGON_SOUL_GIVEN": {
+      "count": 50,
+      "keys": {
+        "name": 50,
+        "teamId": 50,
+        "timestamp": 50,
+        "type": 50
+      }
+    },
+    "OBJECTIVE_BOUNTY_PRESTART": {
+      "count": 47,
+      "keys": {
+        "actualStartTime": 47,
+        "teamId": 47,
+        "timestamp": 47,
+        "type": 47
+      }
+    },
+    "PAUSE_END": {
+      "count": 45,
+      "keys": {
+        "realTimestamp": 45,
+        "timestamp": 45,
+        "type": 45
+      }
+    },
+    "GAME_END": {
+      "count": 45,
+      "keys": {
+        "gameId": 45,
+        "realTimestamp": 45,
+        "timestamp": 45,
+        "type": 45,
+        "winningTeam": 45
+      }
+    },
+    "OBJECTIVE_BOUNTY_FINISH": {
+      "count": 22,
+      "keys": {
+        "teamId": 22,
+        "timestamp": 22,
+        "type": 22
+      }
+    },
+    "CHAMPION_TRANSFORM": {
+      "count": 14,
+      "keys": {
+        "participantId": 14,
+        "timestamp": 14,
+        "transformType": 14,
+        "type": 14
+      }
+    }
+  },
+  "participantFrameKeys": {
+    "championStats": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "currentGold": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0258,
+      "types": [
+        "number"
+      ],
+      "sample": 500
+    },
+    "damageStats": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "goldPerSecond": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7999,
+      "types": [
+        "number"
+      ],
+      "sample": 30
+    },
+    "jungleMinionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.706,
+      "types": [
+        "number"
+      ],
+      "sample": 8
+    },
+    "level": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "minionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1148,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "participantId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "position": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "timeEnemySpentControlled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0984,
+      "types": [
+        "number"
+      ],
+      "sample": 3006
+    },
+    "totalGold": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 500
+    },
+    "xp": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0716,
+      "types": [
+        "number"
+      ],
+      "sample": 248
+    }
+  },
+  "participantFields": {
+    "allInPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8156,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "assistMePings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4733,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "assists": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0844,
+      "types": [
+        "number"
+      ],
+      "sample": 8
+    },
+    "baronKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9333,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "basicPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "causedGameEndFromIGNBSurrender": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "challenges": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "champExperience": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0333,
+      "types": [
+        "number"
+      ],
+      "sample": 19105
+    },
+    "championId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 36
+    },
+    "championName": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "DrMundo"
+    },
+    "championTransform": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9844,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "champLevel": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 18
+    },
+    "commandPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3133,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "consumablesPurchased": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0711,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "damageDealtToBuildings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1289,
+      "types": [
+        "number"
+      ],
+      "sample": 22843
+    },
+    "damageDealtToEpicMonsters": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3222,
+      "types": [
+        "number"
+      ],
+      "sample": 21774
+    },
+    "damageDealtToObjectives": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0756,
+      "types": [
+        "number"
+      ],
+      "sample": 22843
+    },
+    "damageDealtToTurrets": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1289,
+      "types": [
+        "number"
+      ],
+      "sample": 22843
+    },
+    "damageSelfMitigated": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0156,
+      "types": [
+        "number"
+      ],
+      "sample": 47091
+    },
+    "dangerPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9933,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "deaths": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.06,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "detectorWardsPlaced": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5111,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "doubleKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6667,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "dragonKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8044,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "eligibleForProgression": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0067,
+      "types": [
+        "boolean"
+      ],
+      "sample": true
+    },
+    "enemyMissingPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.2333,
+      "types": [
+        "number"
+      ],
+      "sample": 5
+    },
+    "enemyVisionPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4756,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "firstBloodAssist": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9378,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "firstBloodKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9044,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "firstTowerAssist": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9711,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "firstTowerKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9067,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "gameEndedInEarlySurrender": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9556,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "gameEndedInIGNBSurrender": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "gameEndedInSurrender": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7556,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "getBackPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7422,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "goldEarned": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 14715
+    },
+    "goldSpent": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0044,
+      "types": [
+        "number"
+      ],
+      "sample": 13555
+    },
+    "holdPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "individualPosition": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "TOP"
+    },
+    "inhibitorKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8711,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "inhibitorsLost": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5556,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "inhibitorTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6778,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "item0": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0133,
+      "types": [
+        "number"
+      ],
+      "sample": 1120
+    },
+    "item1": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0267,
+      "types": [
+        "number"
+      ],
+      "sample": 3748
+    },
+    "item2": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0689,
+      "types": [
+        "number"
+      ],
+      "sample": 3083
+    },
+    "item3": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0867,
+      "types": [
+        "number"
+      ],
+      "sample": 3084
+    },
+    "item4": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1978,
+      "types": [
+        "number"
+      ],
+      "sample": 3065
+    },
+    "item5": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3622,
+      "types": [
+        "number"
+      ],
+      "sample": 3009
+    },
+    "item6": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0044,
+      "types": [
+        "number"
+      ],
+      "sample": 3340
+    },
+    "itemsPurchased": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0044,
+      "types": [
+        "number"
+      ],
+      "sample": 20
+    },
+    "killingSprees": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3311,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "kills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1067,
+      "types": [
+        "number"
+      ],
+      "sample": 9
+    },
+    "lane": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "TOP"
+    },
+    "largestCriticalStrike": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6778,
+      "types": [
+        "number"
+      ],
+      "sample": 532
+    },
+    "largestKillingSpree": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3311,
+      "types": [
+        "number"
+      ],
+      "sample": 6
+    },
+    "largestMultiKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1067,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "longestTimeSpentLiving": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.06,
+      "types": [
+        "number"
+      ],
+      "sample": 790
+    },
+    "magicDamageDealt": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0733,
+      "types": [
+        "number"
+      ],
+      "sample": 44379
+    },
+    "magicDamageDealtToChampions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0911,
+      "types": [
+        "number"
+      ],
+      "sample": 20331
+    },
+    "magicDamageTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0333,
+      "types": [
+        "number"
+      ],
+      "sample": 20205
+    },
+    "missions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "needVisionPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8467,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "neutralMinionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4956,
+      "types": [
+        "number"
+      ],
+      "sample": 165
+    },
+    "nexusKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9267,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "nexusLost": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "nexusTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7622,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "objectivesStolen": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9867,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "objectivesStolenAssists": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9956,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "onMyWayPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.2178,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "participantId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "pentaKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9978,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "perks": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "physicalDamageDealt": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0133,
+      "types": [
+        "number"
+      ],
+      "sample": 147758
+    },
+    "physicalDamageDealtToChampions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0244,
+      "types": [
+        "number"
+      ],
+      "sample": 20453
+    },
+    "physicalDamageTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0178,
+      "types": [
+        "number"
+      ],
+      "sample": 40070
+    },
+    "placement": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment1": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment2": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment3": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment4": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment5": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerAugment6": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerBehavior": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "object"
+      ],
+      "sample": "[object]"
+    },
+    "PlayerScore0": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore1": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore10": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore11": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore2": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore3": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore4": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore5": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore6": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore7": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore8": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "PlayerScore9": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "playerSubteamId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "positionAssignedByMatchmaking": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "TOP"
+    },
+    "profileIcon": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 6383
+    },
+    "pushPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8622,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "puuid": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "PTGlaS3QTuo2XYbobrrqU1seIpN_AXZv58--xTuuMTbe83NFf3LLapcbn5L07PeVl-3Qpy1dcxpDFA"
+    },
+    "quadraKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9889,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "retreatPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4756,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "riotIdGameName": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "Haenchen"
+    },
+    "riotIdTagline": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "EUW"
+    },
+    "role": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "SOLO"
+    },
+    "roleBoundItem": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1220
+    },
+    "selectedRolePreferences": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "TOP.PRIMARY.TOP.JUNGLE"
+    },
+    "sightWardsBoughtInGame": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "spell1Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0244,
+      "types": [
+        "number"
+      ],
+      "sample": 150
+    },
+    "spell2Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0467,
+      "types": [
+        "number"
+      ],
+      "sample": 66
+    },
+    "spell3Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.06,
+      "types": [
+        "number"
+      ],
+      "sample": 88
+    },
+    "spell4Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0467,
+      "types": [
+        "number"
+      ],
+      "sample": 6
+    },
+    "subteamPlacement": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "summoner1Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0222,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "summoner1Id": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "summoner2Casts": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0333,
+      "types": [
+        "number"
+      ],
+      "sample": 5
+    },
+    "summoner2Id": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 6
+    },
+    "summonerId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "lF52n2uUEGF5nyz6cAlfTs2NsTmhZLLE8Z6NKmoBEN8e18dH"
+    },
+    "summonerLevel": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 663
+    },
+    "summonerName": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "string"
+      ]
+    },
+    "teamEarlySurrendered": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9778,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "teamId": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 100
+    },
+    "teamIGNBSurrendered": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "teamPosition": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "string"
+      ],
+      "sample": "TOP"
+    },
+    "timeCCingOthers": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0489,
+      "types": [
+        "number"
+      ],
+      "sample": 21
+    },
+    "timePlayed": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1623
+    },
+    "totalAllyJungleMinionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6533,
+      "types": [
+        "number"
+      ],
+      "sample": 116
+    },
+    "totalDamageDealt": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0133,
+      "types": [
+        "number"
+      ],
+      "sample": 198152
+    },
+    "totalDamageDealtToChampions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0244,
+      "types": [
+        "number"
+      ],
+      "sample": 40848
+    },
+    "totalDamageShieldedOnTeammates": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8178,
+      "types": [
+        "number"
+      ],
+      "sample": 3159
+    },
+    "totalDamageTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0178,
+      "types": [
+        "number"
+      ],
+      "sample": 66747
+    },
+    "totalEnemyJungleMinionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7089,
+      "types": [
+        "number"
+      ],
+      "sample": 14
+    },
+    "totalHeal": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0378,
+      "types": [
+        "number"
+      ],
+      "sample": 16952
+    },
+    "totalHealsOnTeammates": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8267,
+      "types": [
+        "number"
+      ],
+      "sample": 1114
+    },
+    "totalMinionsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.04,
+      "types": [
+        "number"
+      ],
+      "sample": 224
+    },
+    "totalTimeCCDealt": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0333,
+      "types": [
+        "number"
+      ],
+      "sample": 286
+    },
+    "totalTimeSpentDead": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0622,
+      "types": [
+        "number"
+      ],
+      "sample": 117
+    },
+    "totalUnitsHealed": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0378,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "tripleKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9178,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "trueDamageDealt": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0289,
+      "types": [
+        "number"
+      ],
+      "sample": 6013
+    },
+    "trueDamageDealtToChampions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.2067,
+      "types": [
+        "number"
+      ],
+      "sample": 64
+    },
+    "trueDamageTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0378,
+      "types": [
+        "number"
+      ],
+      "sample": 6471
+    },
+    "turretKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4622,
+      "types": [
+        "number"
+      ],
+      "sample": 5
+    },
+    "turretsLost": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1,
+      "types": [
+        "number"
+      ],
+      "sample": 6
+    },
+    "turretTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.32,
+      "types": [
+        "number"
+      ],
+      "sample": 7
+    },
+    "unrealKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "visionClearedPings": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "visionScore": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0489,
+      "types": [
+        "number"
+      ],
+      "sample": 21
+    },
+    "visionWardsBoughtInGame": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4822,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "wardsKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.26,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "wardsPlaced": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0467,
+      "types": [
+        "number"
+      ],
+      "sample": 9
+    },
+    "wasAfk": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9933,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "wasPremadeWithIGNBGameEndCauser": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "wasPremadeWithSevereTransgressor": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "wasSevereTransgressor": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "boolean"
+      ],
+      "sample": false
+    },
+    "win": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5,
+      "types": [
+        "boolean"
+      ],
+      "sample": true
+    }
+  },
+  "challenges": {
+    "12AssistStreakCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9222,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "abilityUses": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0156,
+      "types": [
+        "number"
+      ],
+      "sample": 310
+    },
+    "acesBefore15Minutes": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9889,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "alliedJungleMonsterKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6333,
+      "types": [
+        "number"
+      ],
+      "sample": 90
+    },
+    "baronBuffGoldAdvantageOverThreshold": {
+      "presentRate": 0.2,
+      "missingRate": 0.8,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "baronTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7733,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "blastConeOppositeOpponentCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9844,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "bountyGold": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6889,
+      "types": [
+        "number"
+      ],
+      "sample": 214.35211181640625
+    },
+    "buffsStolen": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8289,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "completeSupportQuestInTime": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8556,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "controlWardsPlaced": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5111,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "controlWardTimeCoverageInRiverOrEnemyHalf": {
+      "presentRate": 0.3711,
+      "missingRate": 0.6289,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 0.6190570928583885
+    },
+    "damagePerMinute": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0244,
+      "types": [
+        "number"
+      ],
+      "sample": 1509.4931690852213
+    },
+    "damageTakenOnTeamPercentage": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0178,
+      "types": [
+        "number"
+      ],
+      "sample": 0.42098622970486027
+    },
+    "dancedWithRiftHerald": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "deathsByEnemyChamps": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.06,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "dodgeSkillShotsSmallWindow": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7333,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "doubleAces": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "dragonTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5267,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "earliestBaron": {
+      "presentRate": 0.3111,
+      "missingRate": 0.6889,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1313.86437017
+    },
+    "earliestDragonTakedown": {
+      "presentRate": 0.4733,
+      "missingRate": 0.5267,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1435.0697963500002
+    },
+    "earliestElderDragon": {
+      "presentRate": 0.0333,
+      "missingRate": 0.9667,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 2730.3775710170003
+    },
+    "earlyLaningPhaseGoldExpAdvantage": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0.9093,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "effectiveHealAndShielding": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7711,
+      "types": [
+        "number"
+      ],
+      "sample": 4273.1572265625
+    },
+    "elderDragonKillsWithOpposingSoul": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9889,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "elderDragonMultikills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9933,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "enemyChampionImmobilizations": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.2956,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "enemyJungleMonsterKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7022,
+      "types": [
+        "number"
+      ],
+      "sample": 7
+    },
+    "epicMonsterKillsNearEnemyJungler": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9156,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "epicMonsterKillsWithin30SecondsOfSpawn": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9378,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "epicMonsterSteals": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9867,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "epicMonsterStolenWithoutSmite": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9867,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "fasterSupportQuestCompletion": {
+      "presentRate": 0.0467,
+      "missingRate": 0.9533,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "fastestLegendary": {
+      "presentRate": 0.0711,
+      "missingRate": 0.9289,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 979.4418006760001
+    },
+    "firstTurretKilled": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5222,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "firstTurretKilledTime": {
+      "presentRate": 0.4778,
+      "missingRate": 0.5222,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 765.4826943060001
+    },
+    "fistBumpParticipation": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9111,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "flawlessAces": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8444,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "fullTeamTakedown": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6556,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "gameLength": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1623.672106188
+    },
+    "getTakedownsInAllLanesEarlyJungleAsLaner": {
+      "presentRate": 0.8,
+      "missingRate": 0.2,
+      "zeroOrNullRate": 0.9833,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "goldPerMinute": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 543.8007694164116
+    },
+    "hadAfkTeammate": {
+      "presentRate": 0.0267,
+      "missingRate": 0.9733,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "hadOpenNexus": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "HealFromMapSources": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6156,
+      "types": [
+        "number"
+      ],
+      "sample": 438.6441650390625
+    },
+    "highestChampionDamage": {
+      "presentRate": 0.1,
+      "missingRate": 0.9,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "highestCrowdControlScore": {
+      "presentRate": 0.1,
+      "missingRate": 0.9,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "highestWardKills": {
+      "presentRate": 0.1156,
+      "missingRate": 0.8844,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "immobilizeAndKillWithAlly": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3733,
+      "types": [
+        "number"
+      ],
+      "sample": 10
+    },
+    "InfernalScalePickup": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9111,
+      "types": [
+        "number"
+      ],
+      "sample": 7
+    },
+    "initialBuffCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8067,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "initialCrabCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8422,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "jungleCsBefore10Minutes": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.78,
+      "types": [
+        "number"
+      ],
+      "sample": 57.25000008940697
+    },
+    "junglerKillsEarlyJungle": {
+      "presentRate": 0.2,
+      "missingRate": 0.8,
+      "zeroOrNullRate": 0.8889,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "junglerTakedownsNearDamagedEpicMonster": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9178,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "kda": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0511,
+      "types": [
+        "number"
+      ],
+      "sample": 4.25
+    },
+    "killAfterHiddenWithAlly": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4467,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "killedChampTookFullTeamDamageSurvived": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9978,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "killingSprees": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.54,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "killParticipation": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0.007,
+      "types": [
+        "number"
+      ],
+      "sample": 0.5151515151515151
+    },
+    "killsNearEnemyTurret": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4178,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "killsOnLanersEarlyJungleAsJungler": {
+      "presentRate": 0.2,
+      "missingRate": 0.8,
+      "zeroOrNullRate": 0.3444,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "killsOnOtherLanesEarlyJungleAsLaner": {
+      "presentRate": 0.8,
+      "missingRate": 0.2,
+      "zeroOrNullRate": 0.8639,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "killsOnRecentlyHealedByAramPack": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "killsUnderOwnTurret": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5067,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "killsWithHelpFromEpicMonster": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9089,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "knockEnemyIntoTeamAndKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7822,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "kTurretsDestroyedBeforePlatesFall": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9022,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "landSkillShotsEarlyGame": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3,
+      "types": [
+        "number"
+      ],
+      "sample": 12
+    },
+    "laneMinionsFirst10Minutes": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0844,
+      "types": [
+        "number"
+      ],
+      "sample": 69
+    },
+    "laningPhaseGoldExpAdvantage": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0.8674,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "legendaryCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9289,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "legendaryItemUsed": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0,
+      "types": [
+        "array"
+      ],
+      "sample": "[object]"
+    },
+    "lostAnInhibitor": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9667,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "maxCsAdvantageOnLaneOpponent": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0.0581,
+      "types": [
+        "number"
+      ],
+      "sample": 18.500000059604645
+    },
+    "maxKillDeficit": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "maxLevelLeadLaneOpponent": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0.0512,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "mejaisFullStackInTime": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9933,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "moreEnemyJungleThanOpponent": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8067,
+      "types": [
+        "number"
+      ],
+      "sample": -47.500000059604645
+    },
+    "multiKillOneSpell": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9378,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "multikills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6667,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "multikillsAfterAggressiveFlash": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9311,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "multiTurretRiftHeraldCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "outerTurretExecutesBefore10Minutes": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9956,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "outnumberedKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4978,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "outnumberedNexusKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "perfectDragonSoulsTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9444,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "perfectGame": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9778,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "pickKillWithAlly": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0556,
+      "types": [
+        "number"
+      ],
+      "sample": 14
+    },
+    "playedChampSelectPosition": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "poroExplosions": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "quickCleanse": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9978,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "quickFirstTurret": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9956,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "quickSoloKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9156,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "riftHeraldTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.86,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "saveAllyFromDeath": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9267,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "scuttleCrabKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7422,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "shortestTimeToAceFromFirstTakedown": {
+      "presentRate": 0.2244,
+      "missingRate": 0.7756,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 14.57566749800003
+    },
+    "skillshotsDodged": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0467,
+      "types": [
+        "number"
+      ],
+      "sample": 7
+    },
+    "skillshotsHit": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.24,
+      "types": [
+        "number"
+      ],
+      "sample": 61
+    },
+    "snowballsHit": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "soloBaronKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9978,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "soloKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.4444,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "soloTurretsLategame": {
+      "presentRate": 0.2178,
+      "missingRate": 0.7822,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "stealthWardsPlaced": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0556,
+      "types": [
+        "number"
+      ],
+      "sample": 8
+    },
+    "survivedSingleDigitHpCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.96,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "survivedThreeImmobilizesInFight": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.5311,
+      "types": [
+        "number"
+      ],
+      "sample": 4
+    },
+    "SWARM_DefeatAatrox": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_DefeatBriar": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_DefeatMiniBosses": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_EvolveWeapon": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_Have3Passives": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_KillEnemy": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_PickupGold": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_ReachLevel50": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_Survive15Min": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "SWARM_WinWith5EvolvedWeapons": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "takedownOnFirstTurret": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8844,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "takedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0511,
+      "types": [
+        "number"
+      ],
+      "sample": 17
+    },
+    "takedownsAfterGainingLevelAdvantage": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9822,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "takedownsBeforeJungleMinionSpawn": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9422,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "takedownsFirstXMinutes": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0711,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "takedownsInAlcove": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8756,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "takedownsInEnemyFountain": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9644,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "teamBaronKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6889,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "teamDamagePercentage": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0244,
+      "types": [
+        "number"
+      ],
+      "sample": 0.37468064436653575
+    },
+    "teamElderDragonKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9667,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "teamRiftHeraldKills": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6556,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "teleportTakedowns": {
+      "presentRate": 0.0644,
+      "missingRate": 0.9356,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "tookLargeDamageSurvived": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9556,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "turretPlatesTaken": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.1378,
+      "types": [
+        "number"
+      ],
+      "sample": 23
+    },
+    "turretsTakenWithRiftHerald": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8444,
+      "types": [
+        "number"
+      ],
+      "sample": 5
+    },
+    "turretTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.32,
+      "types": [
+        "number"
+      ],
+      "sample": 7
+    },
+    "twentyMinionsIn3SecondsCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 1,
+      "types": [
+        "number"
+      ]
+    },
+    "twoWardsOneSweeperCount": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.8711,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "unseenRecalls": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.9933,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "visionScoreAdvantageLaneOpponent": {
+      "presentRate": 0.9556,
+      "missingRate": 0.0444,
+      "zeroOrNullRate": 0,
+      "types": [
+        "number"
+      ],
+      "sample": -0.22628694772720337
+    },
+    "visionScorePerMinute": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.0444,
+      "types": [
+        "number"
+      ],
+      "sample": 0.8018406800630529
+    },
+    "voidMonsterKill": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.6178,
+      "types": [
+        "number"
+      ],
+      "sample": 3
+    },
+    "wardsGuarded": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.7689,
+      "types": [
+        "number"
+      ],
+      "sample": 1
+    },
+    "wardTakedowns": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.2533,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    },
+    "wardTakedownsBefore20M": {
+      "presentRate": 1,
+      "missingRate": 0,
+      "zeroOrNullRate": 0.3689,
+      "types": [
+        "number"
+      ],
+      "sample": 2
+    }
+  },
+  "patchFacts": {
+    "baronFirstSpawnMs": 1228376,
+    "baronKillsSeen": 37,
+    "atakhanEvents": 0,
+    "hordeEvents": 129,
+    "dragonSoulGivenEvents": 50,
+    "turretPlateEvents": 2381,
+    "turretPlateEventsAfter14Min": 1683,
+    "turretPlatesByLane": {
+      "MID_LANE": 885,
+      "BOT_LANE": 762,
+      "TOP_LANE": 734
+    }
+  }
+}

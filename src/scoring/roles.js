@@ -490,7 +490,18 @@ function scoreTop(P, ctx) {
   const side = {
     score: pressureAdjusted(
       weightedMean([
-        { score: opp ? versus(P.platesTaken, opp.platesTaken, { prior: 2.5, gain: 1.4 }) : null, weight: 0.45 },
+        // Early plates only. The schema probe found 70.7% of plate events now
+        // land after 14:00, because plates persist and tier 2 and 3 turrets
+        // carry them too — so the whole-game total is a split-push metric, not a
+        // lane-dominance one. Without a timeline the phase is unknowable, and
+        // the term drops out rather than asserting a lane result it cannot see.
+        {
+          score:
+            P.platesPhaseKnown && opp?.platesPhaseKnown
+              ? versus(P.platesEarly, opp.platesEarly, { prior: 2.5, gain: 1.4 })
+              : null,
+          weight: 0.45
+        },
         {
           score: blend(
             opp ? versus(P.turretDamage, opp.turretDamage, { prior: 2000, gain: 1.3 }) : null,
@@ -503,7 +514,7 @@ function scoreTop(P, ctx) {
       ]),
       P
     ),
-    detail: `${P.platesTaken} plates · ${Math.round(P.turretDamage / 100) / 10}k turret dmg`
+    detail: `${P.platesPhaseKnown ? `${P.platesEarly} early plates` : `${P.platesTaken} plates`} · ${Math.round(P.turretDamage / 100) / 10}k turret dmg`
   };
 
   return {
