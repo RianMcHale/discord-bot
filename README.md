@@ -141,6 +141,30 @@ first, leaving the other two broken in exactly the same way for exactly the same
 A test now walks the source for cs comparisons that aren't inside a blend, so the next one
 can't be missed.
 
+**A dominant share scores like a dominant lead does.** Every "share of the team's X"
+metric — damage share, kill share, objective share, kill participation — went through the
+same curve as a head-to-head comparison, which divides by the sum of both values. That is
+right when two real players compete for one pool and wrong against a fixed bar:
+
+| | old | now |
+|---|---|---|
+| 30% of team damage (par 26%) | 54.2 | **61.1** |
+| 35% | 58.8 | **73.4** |
+| 45% | 66.0 | **89.5** |
+| 55% | 71.6 | **96.3** |
+| *for contrast:* 1000g lane lead at 14 | 77.2 | 77.2 |
+
+A player doing **half their team's entire damage** could not score above 69, while a laner
+1000g up at 14 scored 77 — because gold goes through `fromDiff`, whose scale is calibrated
+to what a real lead looks like. Roles weighted toward share metrics were capped a full
+grade below roles weighted toward difference metrics, for no reason anyone chose. That is
+why a mid laner who took 48% of his team's kills and 30% of its damage came out around 50.
+
+`versusShare` works in ratios instead: `full` is how far above par counts as winning that
+axis outright, tuned per metric (0.6 for kill participation, whose realistic range is
+narrow; 1.0 for kill share, which varies far more). Par still lands on exactly 50, so
+nothing about an even game moves and role parity is unchanged.
+
 **No role's score is decided by who the enemy picked.** The general form of the same
 problem, found by holding a player's own stats fixed and varying *only* the opponent
 across the range one role spans on champion identity alone:

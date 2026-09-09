@@ -19,7 +19,7 @@
 // Weights per role sum to 100. Components that need timeline data return null
 // and drop out of the average rather than scoring zero.
 
-import { versus, fromDiff, weightedMean, blend, component, clamp, safeDiv } from './scale.js';
+import { versus, versusShare, fromDiff, weightedMean, blend, component, clamp, safeDiv } from './scale.js';
 
 // Rough Summoner's Rift role averages. Used as the second anchor so a lane where
 // both players were awful doesn't hand one of them a good score just for being
@@ -234,8 +234,8 @@ function combatComponent(
 ) {
   const opp = opponentOf(P, ctx);
   const dmgScore =
-    P.teamDamageShare == null ? null : versus(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { prior: 0.03, gain: 1.25 });
-  const tankScore = P.teamTakenShare == null ? null : versus(P.teamTakenShare, baseline.tankShare, { prior: 0.05, gain: 1.0 });
+    P.teamDamageShare == null ? null : versusShare(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { full: 0.75 });
+  const tankScore = P.teamTakenShare == null ? null : versusShare(P.teamTakenShare, baseline.tankShare, { full: 1.0 });
 
   let shareScore = weightedMean([
     { score: dmgScore, weight: 1 - frontlineShare },
@@ -259,7 +259,7 @@ function combatComponent(
       ? null
       : blend(
           opp && opp.killShare != null ? versus(P.killShare, opp.killShare, { prior: 0.06, gain: 1.25 }) : null,
-          versus(P.killShare, baseline.killShare, { prior: 0.06, gain: 1.25 }),
+          versusShare(P.killShare, baseline.killShare, { full: 1.0 }),
           0.45
         );
 
@@ -268,7 +268,7 @@ function combatComponent(
   // who mattered at the barons — and for a jungler that distinction is the job.
   // A farming jungler cannot fake this the way they can fake a damage number.
   const lateScore =
-    P.lateKp == null ? null : versus(P.lateKp, baseline.kp * (P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1), { prior: 0.1, gain: 1.2 });
+    P.lateKp == null ? null : versusShare(P.lateKp, baseline.kp * (P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1), { full: 0.6 });
 
   // Weights need not sum to 1 — weightedMean renormalises, so opting a role into
   // an extra term dilutes the others rather than needing them restated.
@@ -301,7 +301,7 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3 } = {}) {
   // Against the counterpart first: "did you show up for objectives more than the
   // player in your role on the other team" survives a game where nobody took any.
   const vsOpp = opp ? versus(P.personalEpics, opp.personalEpics, { prior: 1.2, gain: 1.3 }) : null;
-  let shareScore = P.epicShare == null ? null : versus(P.epicShare, baseline.epicShare, { prior: 0.15, gain: 1.2 });
+  let shareScore = P.epicShare == null ? null : versusShare(P.epicShare, baseline.epicShare, { full: 0.9 });
   // With only one or two epics on the board, "you weren't on it" is noise, not a
   // verdict. Shrink toward neutral until there's enough on the board to judge.
   if (shareScore !== null && P.teamEpicWeighted != null) {
@@ -376,8 +376,8 @@ function participationComponent(P, ctx, baseline) {
   const spread = P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1;
   const expected = baseline.kp * spread;
 
-  const overall = versus(P.kp, expected, { prior: 0.1, gain: 1.2 });
-  const late = P.lateKp == null ? null : versus(P.lateKp, expected, { prior: 0.1, gain: 1.2 });
+  const overall = versusShare(P.kp, expected, { full: 0.6 });
+  const late = P.lateKp == null ? null : versusShare(P.lateKp, expected, { full: 0.6 });
   const score = weightedMean([
     { score: overall, weight: 0.5 },
     { score: late, weight: 0.5 }

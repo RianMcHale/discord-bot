@@ -43,6 +43,27 @@ export function versusBaseline(mine, expected, opts) {
 }
 
 /**
+ * A share measured against the share expected of the role, on a ratio.
+ *
+ * `versus` is the wrong shape for this. It divides by the sum of both values,
+ * which is right when both are real players competing for one pool, and wrong
+ * against a fixed bar: with a baseline of 26% damage share, a player doing 35%
+ * — a dominant carry game — scored 58.8, and one doing *half their team's
+ * entire damage* scored 69. Meanwhile a laner 2000g up at 14 scored 92, because
+ * gold goes through `fromDiff`, whose scale is calibrated to what a real lead
+ * looks like. Roles weighted toward share metrics were capped a full grade below
+ * roles weighted toward difference metrics, for no reason anyone chose.
+ *
+ * Working in ratios fixes it: `full` is how far above par counts as completely
+ * winning that axis, so 0.75 means "75% above the bar is a perfect score". Par
+ * still lands exactly on 50, so nothing about an even game moves.
+ */
+export function versusShare(mine, expected, { full = 0.75 } = {}) {
+  if (!Number.isFinite(mine) || !Number.isFinite(expected) || expected <= 0) return null;
+  return fromDiff(mine / expected - 1, full);
+}
+
+/**
  * Maps a signed difference (gold, xp, cs) onto 0-100.
  * `full` is the difference that counts as completely winning the matchup.
  * `pivot` shifts what "even" means — this is where jungle pressure gets applied:
