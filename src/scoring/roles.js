@@ -20,6 +20,7 @@
 // and drop out of the average rather than scoring zero.
 
 import { versus, versusShare, fromDiff, weightedMean, blend, component, clamp, safeDiv } from './scale.js';
+import { applyCalibration } from './calibration.js';
 
 // Rough Summoner's Rift role averages. Used as the second anchor so a lane where
 // both players were awful doesn't hand one of them a good score just for being
@@ -27,7 +28,7 @@ import { versus, versusShare, fromDiff, weightedMean, blend, component, clamp, s
 // `killShare` is a share of the team's kills, so the five roles' figures sum to
 // 1 by construction. Carries take more of them than the two roles whose job is
 // to set the kill up.
-export const BASELINE = {
+const HAND_SET_BASELINE = {
   TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
   // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
@@ -45,6 +46,21 @@ export const BASELINE = {
   UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, ccScore: 55, healShield: 700 },
   UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
+
+/**
+ * The baselines the rubrics actually use.
+ *
+ * Every number above was hand-set, and measuring them showed several were wrong
+ * by half — top and mid were held to an objectives bar more than twice the real
+ * median, the ADC to a damage bar a fifth above it. A role whose measured sample
+ * clears the floor runs on medians; a role that does not keeps the hand-set
+ * value, because swapping a bad guess for a noisy measurement is not a fix.
+ *
+ * Resolved once at import: a score must not change meaning between two calls in
+ * the same process.
+ */
+export const BASELINE = applyCalibration(HAND_SET_BASELINE);
+export { HAND_SET_BASELINE };
 
 // Damage share is not a constant across a game's length. A marksman with one
 // item does a fraction of the damage they do with five; a bruiser or a tank is

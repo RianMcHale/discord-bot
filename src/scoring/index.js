@@ -13,6 +13,7 @@
 import { buildContext } from './context.js';
 import { scoreRole, PRESSURE_CAP_AGAINST, PRESSURE_CAP_FOR } from './roles.js';
 import { round1, clamp, grade } from './scale.js';
+import { calibrationVersion } from './calibration.js';
 
 const MIN_SCORABLE_SECONDS = 8 * 60; // anything shorter is a remake
 
@@ -100,6 +101,10 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
       win: P.win,
       isTracked: trackedPuuids.includes(P.puuid),
       dataQuality: ctx.hasTimeline ? 'full' : 'partial',
+      // Which baselines produced this number (spec F9). Null while the model is
+      // running on hand-set values. Stored per game so a rolling average can
+      // tell whether it is mixing scores that mean different things.
+      calibrationVersion: calibrationVersion(),
       components: components.map((c) => ({
         key: c.key,
         label: c.label,
