@@ -15,11 +15,12 @@ db.upsertPlayer({ discordId: 'd2', riotGameName: 'Two', riotTagLine: 'EUW', puui
 
 /** A Riot client that serves canned matches and counts every call. */
 function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], accounts = {}, historyStatus = null, timelineFails = [] }) {
-  const calls = { getRecentMatchIds: [], getMatch: [], getTimeline: [], getAccountByRiotId: [] };
+  const calls = { getRecentMatchIds: [], getMatch: [], getTimeline: [], getAccountByRiotId: [], startTimes: [] };
   return {
     calls,
-    async getRecentMatchIds(puuid) {
+    async getRecentMatchIds(puuid, count, queue, opts = {}) {
       calls.getRecentMatchIds.push(puuid);
+      calls.startTimes.push(opts.startTime ?? null);
       if (historyStatus) throw Object.assign(new Error('nope'), { response: { status: historyStatus } });
       // Simulates a PUUID issued under a previous development key.
       if (staleFor.includes(puuid)) {
@@ -44,11 +45,16 @@ function fakeApi({ ids, matches, timelines = {}, failOn = [], staleFor = [], acc
   };
 }
 
+// The timestamps these tests pass are ordering tokens, not real times — 3000 is
+// only ever "after 1000". Anchoring them near now keeps that ordering while
+// putting the games inside the fetch window, which the scanner now enforces.
+const RECENT = Date.now() - 60 * 60 * 1000;
+
 /** A shared match at a given end time, with unique participant puuids per id. */
 function sharedMatch(matchId, endTimestamp) {
   const { match } = campedTopScenario();
   match.metadata.matchId = matchId;
-  match.info.gameEndTimestamp = endTimestamp;
+  match.info.gameEndTimestamp = RECENT + endTimestamp;
   return match;
 }
 
@@ -407,4 +413,67 @@ test('a scan that throws does not wedge every scan after it', async () => {
   match.info.gameId = 777;
   const ok = await scanForNewGames({ api: fakeApi({ ids: ['EUW1_AFTER'], matches: { EUW1_AFTER: match } }) });
   assert.equal(ok.scored.length, 1, 'the next scan still runs');
+});
+
+// ---------------------------------------------------------------------------
+// The fetch window
+//
+// The squad asked for this after old games kept arriving: a scan that reaches
+// back through a whole match history finds games from weeks ago and posts them
+// as though they were last night's.
+// ---------------------------------------------------------------------------
+
+test('the age window is pushed to Riot, not applied after fetching', async () => {
+  // The point of using Riot's own startTime is that an out-of-window match id
+  // never comes back, so it never costs a match call to reject. Filtering after
+  // the fact would spend the whole budget learning what to throw away.
+  const api = fakeApi({ ids: ['A'], matches: { A: sharedMatch('A', 1000) }, timelines: {} });
+  await scanForNewGames({ api });
+
+  const sent = api.calls.startTimes.filter((t) => t !== null);
+  assert.equal(sent.length, api.calls.getRecentMatchIds.length, 'every history call carries the window');
+  // Seconds, not milliseconds — the endpoint takes epoch seconds, and passing ms
+  // asks for matches played about fifty thousand years from now.
+  const expected = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+  assert.ok(Math.abs(sent[0] - expected) < 5, `expected ~${expected}, got ${sent[0]}`);
+});
+
+test('a game older than the window is rejected even if Riot returns it', async () => {
+  // Belt and braces: the guard on the fetched match. Riot's filter should have
+  // kept this out, so reaching the guard means something upstream disagreed —
+  // and posting a two-month-old game as new is exactly what the window is for.
+  db.resetGames();
+  const old = sharedMatch('OLD', 0);
+  old.info.gameEndTimestamp = Date.now() - 60 * 24 * 60 * 60 * 1000;
+  const api = fakeApi({ ids: ['OLD'], matches: { OLD: old }, timelines: {} });
+
+  const result = await scanForNewGames({ api });
+  assert.equal(result.scored.length, 0, 'a two-month-old game is not a new game');
+  assert.equal(db.hasGame('OLD'), false);
+});
+
+test('the rejection says how old the game was, not just that it was refused', async () => {
+  // Stored with a reason like every other exclusion, so a scan that quietly
+  // finds nothing can still be explained afterwards.
+  db.resetGames();
+  const old = sharedMatch('STALE', 0);
+  old.info.gameEndTimestamp = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const api = fakeApi({ ids: ['STALE'], matches: { STALE: old }, timelines: {} });
+
+  await scanForNewGames({ api });
+  const skipped = db.skippedReason('STALE');
+  assert.ok(skipped, 'the rejection is recorded, not silently dropped');
+  assert.match(skipped, /30 days ago/);
+  assert.match(skipped, /7-day window/);
+});
+
+test('a game inside the window is still scored normally', async () => {
+  // The window must not become a way to quietly score nothing.
+  db.resetGames();
+  const recent = sharedMatch('FRESH', 0);
+  recent.info.gameEndTimestamp = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const api = fakeApi({ ids: ['FRESH'], matches: { FRESH: recent }, timelines: {} });
+
+  const result = await scanForNewGames({ api });
+  assert.equal(result.scored.length, 1, 'two days old is well inside a seven-day window');
 });

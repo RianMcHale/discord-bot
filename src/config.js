@@ -20,6 +20,18 @@ export const config = {
   riotRegion: process.env.RIOT_REGION || 'americas',
   riotPlatform: process.env.RIOT_PLATFORM || 'euw1',
   rollingWindow: parseInt(process.env.ROLLING_WINDOW || '10', 10),
+
+  // How far back a game may have been played and still be fetchable.
+  //
+  // Riot's match-ids endpoint takes a `startTime`, so this is enforced before a
+  // call is spent rather than after: anything older never enters the candidate
+  // list at all. Set to 0 to turn the window off and go back to whatever the
+  // lookback count reaches.
+  //
+  // Worth knowing before changing it: `/resetgames` followed by a re-scan can
+  // only bring back games inside this window. Widen it temporarily if you are
+  // re-scoring history after a scoring change.
+  maxGameAgeDays: parseInt(process.env.MAX_GAME_AGE_DAYS || '7', 10),
   // Games needed before someone can be ranked — or benched — on recent form.
   // A bench call off one or two games is noise, not evidence.
   leaderboardMinGames: parseInt(process.env.LEADERBOARD_MIN_GAMES || '5', 10),

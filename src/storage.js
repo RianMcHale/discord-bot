@@ -236,6 +236,12 @@ export const db = {
     if (!entry || entry.rosterCount !== rosterCount) return false;
     return rulesKey === null || entry.rulesKey === rulesKey;
   },
+  // Why a match was turned away, or null if it never was. The reason has always
+  // been written; nothing could read it back, so a scan that quietly found
+  // nothing could not be explained after the fact.
+  skippedReason(matchId) {
+    return read().skipped[matchId]?.reason ?? null;
+  },
   markSkipped(matchId, reason, rosterCount, rulesKey = null) {
     const state = read();
     state.skipped[matchId] = { reason, rosterCount, rulesKey };

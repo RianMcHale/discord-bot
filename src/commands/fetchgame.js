@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { scanForNewGames } from '../scanner.js';
 import { buildMatchEmbed, postScorecards } from '../embeds.js';
+import { config } from '../config.js';
 
 // Discord's 6000-character embed limit is the total across every embed in a
 // MESSAGE, not per embed. Five scorecards in one reply exceeds it and the whole
@@ -63,9 +64,21 @@ export async function execute(interaction) {
         .join('\n');
       const cachedNote = result.cached > 0 ? `\n-# ${result.cached} already checked previously — not re-fetched` : '';
 
+      // Naming the window matters here. Riot filters by date before returning
+      // ids, so a game outside it is never a candidate and never shows up in
+      // the reasons below — which would leave "try increasing lookback" as the
+      // only advice on screen, and it is the wrong advice for a game that is
+      // simply too old.
+      const window = config.maxGameAgeDays;
+      const scope = window > 0
+        ? `across the squad's last ${lookback} games each, within the last ${window} days`
+        : `across the squad's last ${lookback} games each`;
+      const advice = window > 0
+        ? 'Try increasing `lookback`, or raise `MAX_GAME_AGE_DAYS` if the game you want is older than that.'
+        : 'Try increasing `lookback`.';
+
       await interaction.editReply(
-        `No new **Summoner's Rift** matches found across the squad's last ${lookback} games each. ` +
-          'Try increasing `lookback`.' +
+        `No new **Summoner's Rift** matches found ${scope}. ${advice}` +
           (reasons ? `\n${reasons}` : '') +
           cachedNote
       );

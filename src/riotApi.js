@@ -41,9 +41,14 @@ export const riot = {
   },
 
   // Most recent match ids for a player. queue=420 is ranked solo/duo; pass null for all queues.
-  async getRecentMatchIds(puuid, count = 5, queue = null) {
+  //
+  // `startTime` is epoch SECONDS, not milliseconds, and Riot applies it to when
+  // a match started. Filtering here rather than after fetching is the point:
+  // a match id that never comes back never costs a match call to reject.
+  async getRecentMatchIds(puuid, count = 5, queue = null, { startTime = null } = {}) {
     const params = { start: 0, count };
     if (queue) params.queue = queue;
+    if (Number.isFinite(startTime) && startTime > 0) params.startTime = Math.floor(startTime);
     const { data } = await withRetry(() =>
       regional.get(`/lol/match/v5/matches/by-puuid/${puuid}/ids`, { params })
     );

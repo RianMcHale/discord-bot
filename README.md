@@ -645,6 +645,29 @@ under the previous setting.
 Games from unsupported queues that were scored before this filter existed are removed
 automatically on the next startup, and the count is logged.
 
+### How far back games are fetched
+
+Only games played in the **last 7 days** are fetchable, set by `MAX_GAME_AGE_DAYS`:
+
+```
+MAX_GAME_AGE_DAYS=7     # 0 turns the window off entirely
+```
+
+This is pushed to Riot rather than applied after the fact — the match-ids endpoint takes a
+`startTime`, so an out-of-window game never comes back as a candidate and never costs a
+match call to reject. That matters on a development key, where the budget is 100 requests
+per two minutes and a scan checks six players.
+
+A second check runs on the match itself, in case a game slips through the first. It is
+recorded with its reason like any other rejection (`played 30 days ago, outside the 7-day
+window`), so a scan that finds nothing can still be explained afterwards.
+
+**One thing to know before re-scoring history.** `/resetgames` followed by a re-scan can
+only bring back games inside the window — anything older is gone from the board until you
+widen it. If you are re-scoring after a scoring change, raise `MAX_GAME_AGE_DAYS` first and
+put it back afterwards. Changing it re-checks games previously turned away for being too
+old, the same way changing the queue lists does.
+
 ## Auto-posting finished games
 
 Set `DISCORD_WATCH_CHANNEL_ID` and the bot posts each game's scorecard by itself,

@@ -14,6 +14,7 @@ import { db } from './storage.js';
 import { scoreMatch } from './scoring/index.js';
 import { isSupportedQueue, unsupportedReason, queueRulesKey } from './queues.js';
 import { enemySummary } from './embeds.js';
+import { config } from './config.js';
 
 /**
  * Match history for one player, repairing a stale PUUID if that's what's wrong.
@@ -37,9 +38,20 @@ export async function repairPuuid(api, player) {
   return account.puuid;
 }
 
-async function idsForPlayer(api, player, lookback) {
+/**
+ * Epoch ms before which a game is too old to fetch, or null when the window is
+ * switched off. Resolved once per scan so every player in one pass is measured
+ * against the same instant.
+ */
+export function ageCutoff(now = Date.now(), days = config.maxGameAgeDays) {
+  return days > 0 ? now - days * 24 * 60 * 60 * 1000 : null;
+}
+
+async function idsForPlayer(api, player, lookback, cutoff) {
+  // Seconds, because that is what Riot's endpoint takes.
+  const startTime = cutoff === null ? null : Math.floor(cutoff / 1000);
   try {
-    return await api.getRecentMatchIds(player.puuid, lookback);
+    return await api.getRecentMatchIds(player.puuid, lookback, null, { startTime });
   } catch (err) {
     const status = err?.response?.status;
     // 400 is the decryption failure; 404 covers a PUUID that no longer resolves.
@@ -47,7 +59,7 @@ async function idsForPlayer(api, player, lookback) {
 
     const fresh = await repairPuuid(api, player);
     if (!fresh) throw err;
-    return await api.getRecentMatchIds(fresh, lookback);
+    return await api.getRecentMatchIds(fresh, lookback, null, { startTime });
   }
 }
 
@@ -60,12 +72,12 @@ async function idsForPlayer(api, player, lookback) {
  * because the API is down must not report the same "no new games" as a scan that
  * genuinely found nothing.
  */
-async function collectCandidateIds(api, players, lookback) {
+async function collectCandidateIds(api, players, lookback, cutoff) {
   const idSet = new Set();
   const errors = [];
   for (const player of players) {
     try {
-      const ids = await idsForPlayer(api, player, lookback);
+      const ids = await idsForPlayer(api, player, lookback, cutoff);
       ids.forEach((id) => idSet.add(id));
     } catch (err) {
       const status = err?.response?.status;
@@ -122,11 +134,21 @@ async function runScan({ lookback = 5, maxToScore = 5, order = 'newest', api = r
   }
 
   const rosterCount = players.length;
-  // Rejections only stand while the rules that produced them still hold.
-  const rulesKey = queueRulesKey();
+  // Rejections only stand while the rules that produced them still hold, and the
+  // age window is one of those rules — widening it has to re-check games turned
+  // away for being too old.
+  //
+  // The *setting* goes in the key, never the computed cutoff. The cutoff moves
+  // every day, so keying on it would change the key on every scan and throw away
+  // the entire skip cache each time, which is the one thing that keeps a scan
+  // from re-fetching every solo queue game the squad has ever played.
+  const rulesKey = `${queueRulesKey()}:age${config.maxGameAgeDays}`;
   const nameByDiscordId = Object.fromEntries(players.map((p) => [p.discordId, p.riotGameName]));
 
-  const { ids: candidateIds, errors: apiErrors } = await collectCandidateIds(api, players, lookback);
+  // One instant for the whole scan, so every player is measured against the same
+  // cutoff even if the pass takes a minute to work through six match histories.
+  const cutoff = ageCutoff();
+  const { ids: candidateIds, errors: apiErrors } = await collectCandidateIds(api, players, lookback, cutoff);
   // Recomputed after collectCandidateIds, which may have repaired stale PUUIDs.
   const trackedPuuidsNow = players.map((p) => p.puuid);
 
@@ -154,6 +176,19 @@ async function runScan({ lookback = 5, maxToScore = 5, order = 'newest', api = r
     // Rift roles and a lane counterpart, neither of which exists there.
     if (!isSupportedQueue(match.info)) {
       newlySkipped.push({ matchId, reason: unsupportedReason(match.info) });
+      continue;
+    }
+
+    // Older than the fetch window. Riot's `startTime` should already have kept
+    // this id out of the candidate list, so reaching here means either the
+    // window moved mid-scan or the endpoint returned something outside it. Left
+    // in as a second line rather than trusted away, because the failure it
+    // guards against — a months-old game posted as if it were last night's — is
+    // the one the window exists to prevent.
+    const playedAt = match.info.gameEndTimestamp || match.info.gameStartTimestamp || 0;
+    if (cutoff !== null && playedAt > 0 && playedAt < cutoff) {
+      const days = Math.round((Date.now() - playedAt) / (24 * 60 * 60 * 1000));
+      newlySkipped.push({ matchId, reason: `played ${days} days ago, outside the ${config.maxGameAgeDays}-day window` });
       continue;
     }
 
