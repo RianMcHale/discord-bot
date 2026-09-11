@@ -11,7 +11,8 @@
     "schema-probe": "node scripts/schema-probe.mjs",
     "field-audit": "node scripts/field-audit.mjs",
     "calibration-pull": "node scripts/calibration-pull.mjs",
-    "build-calibration": "node scripts/build-calibration.mjs"
+    "build-calibration": "node scripts/build-calibration.mjs",
+    "scale-audit": "node scripts/scale-audit.mjs"
   },
   "dependencies": {
     "axios": "^1.7.7",

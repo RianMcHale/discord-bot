@@ -20,7 +20,7 @@
 // and drop out of the average rather than scoring zero.
 
 import { versus, versusShare, fromDiff, weightedMean, blend, component, clamp, safeDiv } from './scale.js';
-import { applyCalibration } from './calibration.js';
+import { applyCalibration, globalStat, diffScale, ratioScale, hasHeadroom } from './calibration.js';
 
 // Rough Summoner's Rift role averages. Used as the second anchor so a lane where
 // both players were awful doesn't hand one of them a good score just for being
@@ -29,22 +29,22 @@ import { applyCalibration } from './calibration.js';
 // 1 by construction. Carries take more of them than the two roles whose job is
 // to set the kill up.
 const HAND_SET_BASELINE = {
-  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
+  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, lateKp: 0.555, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
   // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
   // a jungler who kept farming between plays.
-  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
-  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
+  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, lateKp: 0.688, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
+  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, lateKp: 0.644, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
   // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
   // above: it is only used as the second anchor in a blend, so being roughly
   // right beats having no anchor at all.
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, lateKp: 0.622, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
   // `ccScore` and `healShield` are the two axes a support can specialise on, and
   // they are bimodal by champion: an Alistar does no healing, a Soraka almost no
   // CC. Each is the bar for a support who *chose* that axis, so the higher of
   // the two is what gets graded — see `scoreSupport`.
-  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, ccScore: 55, healShield: 700 },
-  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
+  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, lateKp: 0.688, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, ccScore: 55, healShield: 700 },
+  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, lateKp: 0.633, lateKp: 0.633, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
 };
 
 /**
@@ -111,8 +111,28 @@ const LANE_REFERENCE_MINUTES = 27;
 // How far a post-laning recovery can lift a lost lane, and how far throwing a
 // lead can drag one down. Recovery is worth more than the throw is punished:
 // coming back from a deficit takes play, losing a lead often takes a teamfight.
-const COMEBACK_MAX = 28;
-const THROWN_LEAD_MAX = 10;
+// Expressed as a share of the distance back to par rather than as a flat number
+// of points.
+//
+// A flat ±28 was sized against a lane curve that put an ordinary 90th-percentile
+// top lane at 92. Once that curve was scaled to the measured spread — p10 30,
+// p90 72 — a flat 28 became 70% of the entire range, so the adjustment would
+// have outweighed the thing it adjusts. A share is self-scaling: it stays
+// proportionate for every role, and for any future recalibration.
+//
+// It also makes the ceiling structural rather than a coincidence of constants.
+// The gap is measured on the head-to-head half of the lane score, since that is
+// what a recovery is a statement about, and `fromDiff` is symmetric about 50 —
+// so "losing lane and recovering never beats winning lane outright" reduces to
+//
+//     COMEBACK_SHARE < 2 x DIFFERENTIAL_WEIGHT x GOLD_WEIGHT
+//
+// which holds for every role and every deficit rather than needing to be
+// rechecked whenever a scale moves. The gold weight is in there because the
+// adjustment lands on the whole component while the gap that has to cover it is
+// only the gold half. At beta 0.35 the ceiling is 0.42.
+const COMEBACK_SHARE = 0.36;
+const THROWN_LEAD_SHARE = 0.13;
 
 /**
  * Scales a laning-phase component's weight by how much of the game laning was.
@@ -141,13 +161,15 @@ export function laningWeight(base, ctx) {
  * turn a modest recovery into a full 28 points. It scales with the metric —
  * individual gold uses a few hundred, whole-team gold a few thousand.
  */
-function comebackAdjustment(diff, swing, { floor = 800 } = {}) {
-  if (!Number.isFinite(diff) || !Number.isFinite(swing)) return 0;
+function comebackAdjustment(diff, swing, laned, { floor = 800 } = {}) {
+  if (!Number.isFinite(diff) || !Number.isFinite(swing) || !Number.isFinite(laned)) return 0;
   if (diff < -floor * 0.375 && swing > 0) {
-    return clamp(swing / Math.max(-diff, floor), 0, 1) * COMEBACK_MAX;
+    const recovered = clamp(swing / Math.max(-diff, floor), 0, 1);
+    return recovered * Math.max(0, 50 - laned) * COMEBACK_SHARE;
   }
   if (diff > floor * 0.375 && swing < 0) {
-    return -clamp(-swing / Math.max(diff, floor), 0, 1) * THROWN_LEAD_MAX;
+    const thrown = clamp(-swing / Math.max(diff, floor), 0, 1);
+    return -thrown * Math.max(0, laned - 50) * THROWN_LEAD_SHARE;
   }
   return 0;
 }
@@ -172,7 +194,8 @@ const scaleToBench = (value, P) => value * clamp((P.benchMinute ?? 14) / 14, 0.4
  * "even" to roughly -760 gold: staying only 400 down through two ganks is a good
  * lane, and the score says so.
  */
-function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'individual' } = {}) {
+function laneComponent(P, ctx, { source = 'individual' } = {}) {
+  const b = BASELINE[P.role] || BASELINE.UNKNOWN;
   const net = clamp(P.netPressure ?? 0, -PRESSURE_CAP_FOR, PRESSURE_CAP_AGAINST);
   const goldPivot = -net * PRESSURE_GOLD;
   const xpPivot = -net * PRESSURE_XP;
@@ -180,16 +203,41 @@ function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'indiv
   const individual = P.goldDiff14;
   const pair = P.pairGoldDiff14;
   let goldDiff = individual;
-  let full = goldFull;
+  // Scaled to this role's own spread rather than to one number for everyone.
+  let full = diffScale(P.role, 'goldDiff14', 1800 * 2.6);
   if (source === 'pair') {
     goldDiff = pair;
-    full = goldFull * 1.45;
+    full *= 1.45;
   } else if (source === 'both' && Number.isFinite(individual) && Number.isFinite(pair)) {
     goldDiff = individual * 0.6 + (pair / 2) * 0.4;
   }
+  const xpFull = diffScale(P.role, 'xpDiff14', 1400 * 2.6);
 
-  const goldScore = fromDiff(goldDiff, scaleToBench(full, P), { pivot: scaleToBench(goldPivot, P) });
-  const xpScore = fromDiff(P.xpDiff14, scaleToBench(xpFull, P), { pivot: scaleToBench(xpPivot, P) });
+  const goldVsOpp = fromDiff(goldDiff, scaleToBench(full, P), { pivot: scaleToBench(goldPivot, P) });
+  const xpVsOpp = fromDiff(P.xpDiff14, scaleToBench(xpFull, P), { pivot: scaleToBench(xpPivot, P) });
+
+  // Did you actually lane well, independent of who you drew.
+  //
+  // This component was purely differential until now — the one place in the model
+  // where finding 2's rule (every metric anchored to a baseline, not only to the
+  // counterpart) was never applied, and it is the heaviest component in three of
+  // the five rubrics. Two laners who both farmed badly went even and both scored
+  // 50; two who both played a clean lane also both scored 50. The score could not
+  // tell those games apart, which is the exact question the squad wants answered.
+  //
+  // Pressure moves this bar too, but half as far: a gank that kills you costs you
+  // the gold *and* hands it to your counterpart, so it moves the difference by
+  // about twice what it moves your own total.
+  const benchScale = scaleToBench(1, P);
+  const goldVsBar = versusShare(P.gold14, b.gold14 * benchScale + scaleToBench(goldPivot / 2, P), {
+    full: ratioScale(P.role, 'gold14', 0.5)
+  });
+  const xpVsBar = versusShare(P.xp14, b.xp14 * benchScale + scaleToBench(xpPivot / 2, P), {
+    full: ratioScale(P.role, 'xp14', 0.38)
+  });
+
+  const goldScore = blend(goldVsOpp, goldVsBar);
+  const xpScore = blend(xpVsOpp, xpVsBar);
 
   const laned = weightedMean([
     { score: goldScore, weight: 0.6 },
@@ -201,7 +249,7 @@ function laneComponent(P, ctx, { goldFull = 1800, xpFull = 1400, source = 'indiv
   // lane graded on the pair's economy has to have its recovery measured on the
   // pair too, or the support is credited for their ADC's comeback and vice versa.
   const swing = source === 'pair' ? P.pairPostLaneSwing : P.postLaneSwing;
-  const comeback = comebackAdjustment(goldDiff, swing, { floor: source === 'pair' ? 1200 : 800 });
+  const comeback = comebackAdjustment(goldDiff, swing, goldVsOpp, { floor: source === 'pair' ? 1200 : 800 });
 
   const score = clamp(laned + comeback, 0, 100);
 
@@ -250,8 +298,8 @@ function combatComponent(
 ) {
   const opp = opponentOf(P, ctx);
   const dmgScore =
-    P.teamDamageShare == null ? null : versusShare(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { full: 0.75 });
-  const tankScore = P.teamTakenShare == null ? null : versusShare(P.teamTakenShare, baseline.tankShare, { full: 1.0 });
+    P.teamDamageShare == null ? null : versusShare(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { full: ratioScale(P.role, 'dmgShare', 0.75) });
+  const tankScore = P.teamTakenShare == null ? null : versusShare(P.teamTakenShare, baseline.tankShare, { full: ratioScale(P.role, 'tankShare', 1.0) });
 
   let shareScore = weightedMean([
     { score: dmgScore, weight: 1 - frontlineShare },
@@ -275,7 +323,7 @@ function combatComponent(
       ? null
       : blend(
           opp && opp.killShare != null ? versus(P.killShare, opp.killShare, { prior: 0.06, gain: 1.25 }) : null,
-          versusShare(P.killShare, baseline.killShare, { full: 1.0 })
+          versusShare(P.killShare, baseline.killShare, { full: ratioScale(P.role, 'killShare', 1.0) })
         );
 
   // Were you in the fights that decided the game. Damage share is a whole-game
@@ -283,7 +331,7 @@ function combatComponent(
   // who mattered at the barons — and for a jungler that distinction is the job.
   // A farming jungler cannot fake this the way they can fake a damage number.
   const lateScore =
-    P.lateKp == null ? null : versusShare(P.lateKp, baseline.kp * (P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1), { full: 0.6 });
+    P.lateKp == null ? null : versusShare(P.lateKp, baseline.lateKp * (P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1), { full: ratioScale(P.role, 'lateKp', 0.6) });
 
   // Weights need not sum to 1 — weightedMean renormalises, so opting a role into
   // an extra term dilutes the others rather than needing them restated.
@@ -316,7 +364,13 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3, turretShare 
   // Against the counterpart first: "did you show up for objectives more than the
   // player in your role on the other team" survives a game where nobody took any.
   const vsOpp = opp ? versus(P.personalEpics, opp.personalEpics, { prior: 1.2, gain: 1.3 }) : null;
-  let shareScore = P.epicShare == null ? null : versusShare(P.epicShare, baseline.epicShare, { full: 0.9 });
+  // Null rather than a constant where the bar has no headroom — see hasHeadroom.
+  // `blend` then falls back to the head-to-head alone, which for a jungler is
+  // the half that actually varies.
+  let shareScore =
+    P.epicShare == null || !hasHeadroom(P.role, 'epicShare')
+      ? null
+      : versusShare(P.epicShare, baseline.epicShare, { full: ratioScale(P.role, 'epicShare', 0.9) });
   // With only one or two epics on the board, "you weren't on it" is noise, not a
   // verdict. Shrink toward neutral until there's enough on the board to judge.
   if (shareScore !== null && P.teamEpicWeighted != null) {
@@ -379,10 +433,15 @@ function visionComponent(P, ctx, baseline) {
   return { score, detail: `${P.visionPerMin.toFixed(2)} vis/min · ${P.controlWards} pinks` };
 }
 
-// Average kill participation across a team in a typical game — roughly 1.8
-// assists per kill, so takedowns come to ~2.8x the kill count spread over five
-// players. The role baselines are calibrated against this.
-const TYPICAL_TEAM_AVG_KP = 0.55;
+// Average kill participation across a team in a typical game. The participation
+// bar is rescaled by how a particular game spread its kills, relative to this.
+//
+// It was reasoned to 0.55 from "roughly 1.8 assists per kill over five players".
+// Measured across 976 team-sides it is 0.467, and being 15% high shrank the bar
+// in every game, inflating everyone's participation score — TOP's Presence came
+// out 33 points above par in a lobby where every player sat exactly on their
+// role's median.
+const TYPICAL_TEAM_AVG_KP = globalStat('teamAvgKp', 0.55);
 
 /**
  * Kill participation, weighted toward the fights after laning ends.
@@ -397,8 +456,11 @@ function participationComponent(P, ctx, baseline) {
   const spread = P.teamAvgKp ? clamp(P.teamAvgKp / TYPICAL_TEAM_AVG_KP, 0.6, 1.4) : 1;
   const expected = baseline.kp * spread;
 
-  const overall = versusShare(P.kp, expected, { full: 0.6 });
-  const late = P.lateKp == null ? null : versusShare(P.lateKp, expected, { full: 0.6 });
+  const overall = versusShare(P.kp, expected, { full: ratioScale(P.role, 'kp', 0.6) });
+  // Post-15 participation runs higher than overall KP, by a different factor per
+  // role, so it gets its own bar rather than borrowing the overall one.
+  const lateExpected = baseline.lateKp * spread;
+  const late = P.lateKp == null ? null : versusShare(P.lateKp, lateExpected, { full: ratioScale(P.role, 'lateKp', 0.6) });
   const score = weightedMean([
     { score: overall, weight: 0.5 },
     { score: late, weight: 0.5 }
@@ -447,8 +509,11 @@ function tempoComponent(P, ctx) {
         ? versus(P.counterJungleCs, opp.counterJungleCs, { prior: 4, gain: 1.3 })
         : null;
 
-  const comeback = comebackAdjustment(P.weightedLaneGold14, P.weightedLanePostSwing, { floor: 2600 });
-  const base = fromDiff(P.weightedLaneGold14, scaleToBench(3200, P));
+  // Scaled from the measured spread of team lane state, like the laners' own
+  // lane curves. A hand-set 3200 put an ordinary 4800g team deficit at 3.5 out
+  // of 100 — the same over-sharpness the individual lane curves had.
+  const base = fromDiff(P.weightedLaneGold14, scaleToBench(diffScale('JUNGLE', 'teamLaneGoldDiff14', 9500), P));
+  const comeback = comebackAdjustment(P.weightedLaneGold14, P.weightedLanePostSwing, base, { floor: 2600 });
   const lanes = base === null ? null : clamp(base + comeback, 0, 100);
 
   const score = weightedMean([

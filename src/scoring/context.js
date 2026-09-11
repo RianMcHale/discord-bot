@@ -127,6 +127,116 @@ export function normaliseRole(p) {
   return 'UNKNOWN';
 }
 
+/** True when a set of ten participants gives each team exactly one of each role. */
+function isCompleteAssignment(participants, field) {
+  for (const teamId of [100, 200]) {
+    const side = participants.filter((p) => p.teamId === teamId).map((p) => p[field]);
+    if (side.length !== 5) return false;
+    if (new Set(side).size !== 5) return false;
+    if (!side.every((r) => ROLES.includes(r))) return false;
+  }
+  return true;
+}
+
+/**
+ * Who each player's counterpart was, and how sure we are (spec §5.2, finding F1).
+ *
+ * `teamPosition` is Riot's best guess. It is usually right and occasionally an
+ * empty string, and when it is wrong the failure is silent: a Sett support gets
+ * compared to a jungler, or a lookup returns nothing and every differential is
+ * measured against zero, which produces an absurd 95 or 5 that looks like a real
+ * score. Nothing downstream can detect that, which is why the spec calls it the
+ * highest-severity finding.
+ *
+ * So the chain is explicit, first match wins, and the branch taken is recorded
+ * with the score rather than being thrown away.
+ */
+export function resolveRoles(participants) {
+  const byId = new Map(participants.map((p) => [p.participantId, p]));
+
+  // 1. Riot's own assignment, when it is complete on both sides.
+  if (isCompleteAssignment(participants, 'teamPosition')) {
+    const agrees = participants.every(
+      (p) => !ROLES.includes(p.individualPosition) || p.individualPosition === p.teamPosition
+    );
+    return new Map(
+      participants.map((p) => [
+        p.participantId,
+        { role: p.teamPosition, confidence: 'HIGH', branch: agrees ? 'teamPosition' : 'teamPosition/disputed' }
+      ])
+    );
+  }
+
+  // 2. The other field Riot populates, under the same completeness test.
+  if (isCompleteAssignment(participants, 'individualPosition')) {
+    return new Map(
+      participants.map((p) => [
+        p.participantId,
+        { role: p.individualPosition, confidence: 'MEDIUM', branch: 'individualPosition' }
+      ])
+    );
+  }
+
+  // 3. Infer it. Smite identifies the jungler; within a bot lane the support is
+  //    the one who did not take the minions. What is left is assigned by lane.
+  const inferred = new Map();
+  for (const teamId of [100, 200]) {
+    const side = participants.filter((p) => p.teamId === teamId);
+    if (side.length !== 5) continue;
+
+    const SMITE = 11;
+    const jungler =
+      side.find((p) => p.summoner1Id === SMITE || p.summoner2Id === SMITE) ??
+      side.reduce((a, b) => ((b.neutralMinionsKilled || 0) > (a.neutralMinionsKilled || 0) ? b : a));
+    if (jungler) inferred.set(jungler.participantId, 'JUNGLE');
+
+    const rest = side.filter((p) => p.participantId !== jungler?.participantId);
+    const bot = rest
+      .filter((p) => normaliseRole(p) === 'BOTTOM' || normaliseRole(p) === 'UTILITY' || p.lane === 'BOTTOM')
+      .sort((a, b) => (a.totalMinionsKilled || 0) - (b.totalMinionsKilled || 0));
+    if (bot.length === 2) {
+      inferred.set(bot[0].participantId, 'UTILITY');
+      inferred.set(bot[1].participantId, 'BOTTOM');
+    }
+    for (const p of rest) {
+      if (inferred.has(p.participantId)) continue;
+      const guess = normaliseRole(p);
+      if (guess === 'TOP' || guess === 'MIDDLE') inferred.set(p.participantId, guess);
+    }
+  }
+
+  return new Map(
+    participants.map((p) => {
+      const role = inferred.get(p.participantId);
+      // 4. Unresolvable. The player is still scored, but on metrics that do not
+      //    need a counterpart — never against a counterpart of zero.
+      return [
+        p.participantId,
+        role
+          ? { role, confidence: 'MEDIUM', branch: 'inferred' }
+          : { role: normaliseRole(p), confidence: 'LOW', branch: 'unresolved' }
+      ];
+    })
+  );
+}
+
+/**
+ * Is this counterpart worth measuring against?
+ *
+ * Beating a player who left is not an achievement and losing to one is not a
+ * failure, so a differential against them is noise wearing a number. Detected
+ * from what the summary reports rather than from position frames, which are too
+ * coarse to tell "AFK" from "farming a side lane".
+ */
+export function counterpartIsValid(p, info) {
+  if (!p) return false;
+  if (p.gameEndedInEarlySurrender) return false;
+  // `timePlayed` well under the game's length means they were not there for it.
+  const duration = durationSeconds(info);
+  if (duration > 0 && (p.timePlayed || 0) / duration < 0.8) return false;
+  return true;
+}
+
 /** Riot returned gameDuration in ms for a stretch of patches; normalise to seconds. */
 function durationSeconds(info) {
   if (info.gameEndTimestamp) return info.gameDuration;
@@ -225,6 +335,11 @@ export function buildContext(match, timeline = null) {
   const frames = timeline?.info?.frames;
   const hasTimeline = Array.isArray(frames) && frames.length > 2 && isSummonersRift;
 
+  // Roles for the whole lobby, resolved once (spec §5.2). Doing it per player
+  // cannot see whether the assignment is complete across both teams, which is
+  // the only thing that separates a trustworthy role from a guess.
+  const resolved = resolveRoles(info.participants);
+
   // participantId is 1-10 in participant order, but map through puuid to be safe.
   const players = info.participants.map((p, idx) => {
     const ch = p.challenges || {};
@@ -236,7 +351,9 @@ export function buildContext(match, timeline = null) {
       puuid: p.puuid,
       participantId: p.participantId ?? idx + 1,
       teamId: p.teamId,
-      role: normaliseRole(p),
+      role: resolved.get(p.participantId)?.role ?? normaliseRole(p),
+      roleConfidence: resolved.get(p.participantId)?.confidence ?? 'LOW',
+      roleBranch: resolved.get(p.participantId)?.branch ?? 'unresolved',
       champion: p.championName,
       win: p.win,
       kills: p.kills,
@@ -303,6 +420,7 @@ export function buildContext(match, timeline = null) {
 
       // --- filled in below when a timeline is available ---
       counterpartPuuid: null,
+      counterpartValid: false,
       gold14: null,
       xp14: null,
       cs14: null,
@@ -371,6 +489,10 @@ export function buildContext(match, timeline = null) {
     if (p.role === 'UNKNOWN') continue;
     const opp = players.find((q) => q.teamId !== p.teamId && q.role === p.role);
     p.counterpartPuuid = opp ? opp.puuid : null;
+    // Beating a player who left is not an achievement and losing to one is not
+    // a failure. An invalid counterpart drops the differential rather than
+    // scoring against a phantom (spec §5.2).
+    p.counterpartValid = counterpartIsValid(opp?.raw, info);
   }
 
   const teams = {
@@ -425,6 +547,16 @@ export function buildContext(match, timeline = null) {
     const theirsPost = opp.raw.goldEarned - opp.gold14;
     p.postLaneSwing = minePost - theirsPost;
   }
+  // Deliberately not anchored to a baseline, unlike every other metric.
+  //
+  // Finding F5 says anchor everything absolutely, because a pure differential
+  // cannot tell "both played well" from "both played badly". That argument holds
+  // for gold@14 and is why the lane snapshot now has an absolute term. It
+  // inverts here: measured over the sample, post-laning gold per minute is 1.27x
+  // higher for winners, against 1.06x for gold@14 — because after laning, gold
+  // comes from objectives the team takes. An absolute post-lane bar would mostly
+  // grade whether your team was winning. The counterpart comparison controls for
+  // that, both players being in the same game, so the swing stays relative.
 
   // Bot lane is a 2v2, so the pair's combined economy is the honest read on who
   // won it — a support who gave up every trade can't hide behind their ADC's CS.

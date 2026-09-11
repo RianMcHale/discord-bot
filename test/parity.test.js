@@ -7,19 +7,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scoreMatch } from '../src/scoring/index.js';
+import { BASELINE } from '../src/scoring/roles.js';
 
 const ROLES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 
-// Per-minute output for an unremarkable game in each role, mirrored across both
-// teams so every lane is dead level and nobody did anything notable.
-const RATE = {
-  TOP: { dmg: 0.21, taken: 0.27, cs: 6.4, jg: 0.6, gold: 400, vis: 0.55, td: 180, cc: 2.4, hs: 0, kp: 0.5 },
-  JUNGLE: { dmg: 0.18, taken: 0.21, cs: 1.2, jg: 4.4, gold: 400, vis: 0.9, td: 60, cc: 2.0, hs: 0, kp: 0.62 },
-  MIDDLE: { dmg: 0.26, taken: 0.17, cs: 7.0, jg: 0.3, gold: 430, vis: 0.65, td: 110, cc: 1.2, hs: 0, kp: 0.58 },
-  BOTTOM: { dmg: 0.28, taken: 0.15, cs: 7.6, jg: 0.3, gold: 450, vis: 0.55, td: 260, cc: 0.6, hs: 0, kp: 0.56 },
-  UTILITY: { dmg: 0.09, taken: 0.2, cs: 1.2, jg: 0, gold: 260, vis: 1.9, td: 20, cc: 5.5, hs: 300, kp: 0.62 }
-};
+// "Dead even" has to mean "every player is at the bar their role is measured
+// against" — so the fixture is derived from the live baselines rather than from
+// a hardcoded table.
+//
+// Hardcoding it was fine while the baselines were hand-set guesses, because the
+// two were written together. The moment the bars became measured, a fixed table
+// stopped describing an average game and this test started asserting that a
+// below-median player scores 50. Deriving it keeps the test meaningful across
+// every future recalibration.
+const B = BASELINE;
+const perMin = (role, key, fallback) => (B[role][key] != null ? B[role][key] : fallback);
+const RATE = Object.fromEntries(
+  ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'].map((role) => [
+    role,
+    {
+      dmg: B[role].dmgShare,
+      taken: B[role].tankShare,
+      // Jungle's farm is monsters; everyone else's is lane minions. The split is
+      // not in BASELINE, so it stays a property of the fixture.
+      cs: role === 'JUNGLE' ? 1.2 : B[role].csPerMin,
+      jg: role === 'JUNGLE' ? B[role].csPerMin - 1.2 : 0.3,
+      gold: B[role].goldPerMin,
+      gold14: B[role].gold14,
+      xp14: B[role].xp14,
+      vis: B[role].visionPerMin,
+      td: perMin(role, 'turretDmgPerMin', 100),
+      // Support's CC and heal bars are p90, not medians: they grade whichever
+      // axis the champion specialises in. A median support sits below both.
+      cc: role === 'UTILITY' ? B.UTILITY.ccScore / 30 : 1.0,
+      hs: role === 'UTILITY' ? B.UTILITY.healShield : 0,
+      kp: B[role].kp
+    }
+  ])
+);
 const TEAM_DPM = 2600;
+
+// Deaths are graded on a *weighted* rate, so the fixture cannot just pick a
+// number: it has to die often enough that the weighted figure lands on the bar.
+// Each death below is given two attackers (weight 1.0) and spread evenly through
+// the game, where the late-game multiplier averages about 1.22.
+// Three attackers per death: enough credit slots to give all five killers their
+// measured post-15 participation rate, and a known death weight (0.75).
+const ATTACKERS_PER_DEATH = 3;
+const DEATH_WEIGHT = 0.75;
+const LATE_DEATH_MULTIPLIER = 1.22;
+const deathsFor = (role, minutes) =>
+  Math.max(1, Math.round((B[role].wDeathsPerMin * minutes) / (DEATH_WEIGHT * LATE_DEATH_MULTIPLIER)));
 
 // Each laner in their own lane, in contest range of their counterpart, on their
 // own side of the diagonal; both junglers in open jungle out of gank range of
@@ -41,7 +79,7 @@ function evenGame(minutes, oppTweak = () => ({})) {
     participants.push({
       puuid: `p${id}`, participantId: id, teamId: id <= 5 ? 100 : 200,
       teamPosition: role, championName: role, win: id > 5,
-      kills: Math.round(minutes * 0.18), deaths: Math.round(minutes * 0.17), assists: Math.round(minutes * 0.32),
+      kills: Math.round(minutes * 0.18), deaths: deathsFor(role, minutes), assists: Math.round(minutes * 0.32),
       totalDamageDealtToChampions: Math.round(TEAM_DPM * r.dmg * minutes),
       goldEarned: Math.round(r.gold * minutes),
       totalMinionsKilled: Math.round(r.cs * minutes), neutralMinionsKilled: Math.round(r.jg * minutes),
@@ -67,8 +105,17 @@ function evenGame(minutes, oppTweak = () => ({})) {
     for (let id = 1; id <= 10; id++) {
       const role = ROLES[(id - 1) % 5];
       const r = { ...RATE[role], ...(id > 5 ? oppTweak(role) : {}) };
+      // Laning gold and xp are now graded against their own measured bars, not
+      // inferred from the whole-game rate — a top laner on the median gold/min
+      // is 15% *above* the median gold@14, because the two are different
+      // distributions. So the frames have to land exactly on gold14/xp14 at the
+      // bench minute, then carry on at the game rate.
+      const lane = Math.min(m, 14) / 14;
+      const after = Math.max(0, m - 14);
       pfs[String(id)] = {
-        participantId: id, totalGold: Math.round(r.gold * m), xp: Math.round(r.gold * 1.15 * m),
+        participantId: id,
+        totalGold: Math.round(r.gold14 * lane + r.gold * after),
+        xp: Math.round(r.xp14 * lane + r.gold * 1.15 * after),
         minionsKilled: Math.round(r.cs * m), jungleMinionsKilled: Math.round(r.jg * m), position: POS[id]
       };
     }
@@ -80,11 +127,51 @@ function evenGame(minutes, oppTweak = () => ({})) {
   ev(11, { type: 'ELITE_MONSTER_KILL', killerId: 7, killerTeamId: 200, monsterType: 'DRAGON', monsterSubType: 'EARTH_DRAGON', assistingParticipantIds: [8, 9] });
   ev(15, { type: 'ELITE_MONSTER_KILL', killerId: 6, killerTeamId: 200, monsterType: 'RIFTHERALD', assistingParticipantIds: [7] });
   ev(18, { type: 'ELITE_MONSTER_KILL', killerId: 2, killerTeamId: 100, monsterType: 'DRAGON', monsterSubType: 'AIR_DRAGON', assistingParticipantIds: [1, 5] });
-  for (let id = 1; id <= 10; id++) {
-    const killer = id <= 5 ? id + 5 : id - 5;
-    const mates = (id <= 5 ? [6, 7, 8, 9, 10] : [1, 2, 3, 4, 5]).filter((x) => x !== killer).slice(0, 2);
-    [6, 13, 19, 25, 31].slice(0, Math.round(minutes * 0.17)).forEach((m) =>
-      ev(m, { type: 'CHAMPION_KILL', killerId: killer, victimId: id, assistingParticipantIds: mates, position: POS[id] }));
+  // Deaths spread evenly through the game, and credited so that each killer's
+  // post-15 participation lands on their role's bar.
+  //
+  // Both halves matter. The death count sets the weighted death rate; who is
+  // credited on each kill sets `lateKp`, which is derived from the timeline and
+  // cannot be set directly the way `killParticipation` can. Leaving the credit
+  // structure arbitrary gave one role 100% post-15 participation and the rest
+  // 21%, which is not a dead-even game by any reading.
+  const lateBar = (role) => B[role].lateKp;
+  for (const victimTeam of [100, 200]) {
+    const victims = victimTeam === 100 ? [1, 2, 3, 4, 5] : [6, 7, 8, 9, 10];
+    const killers = victimTeam === 100 ? [6, 7, 8, 9, 10] : [1, 2, 3, 4, 5];
+
+    // Every kill on this side, in time order.
+    const events = [];
+    for (const id of victims) {
+      const n = deathsFor(ROLES[(id - 1) % 5], minutes);
+      for (let i = 0; i < n; i++) events.push({ id, m: Math.round(((i + 0.5) / n) * minutes) });
+    }
+    events.sort((a, b) => a.m - b.m);
+
+    // Each killer needs credit in `bar × lateKills` of the post-15 kills. The
+    // five bars sum to about 2.6, so two attackers per kill cannot carry the
+    // credit — three can, and three attackers is a known death weight (0.75).
+    const lateCount = events.filter((e) => e.m >= 15).length;
+    const owed = new Map(killers.map((k) => [k, lateBar(ROLES[(k - 1) % 5]) * lateCount]));
+
+    // The jungler is excluded from pre-15 kills. Crediting them there registers
+    // as a gank, which lowers the victim's lane bar — so a fixture meant to be
+    // dead even would hand every laner a lane they "beat".
+    const jungler = killers.find((k) => ROLES[(k - 1) % 5] === 'JUNGLE');
+    for (const e of events) {
+      const eligible = e.m >= 15 ? killers : killers.filter((k) => k !== jungler);
+      // Whoever is furthest behind their quota gets credited, so every killer
+      // converges on their own rate rather than one of them taking everything.
+      const credited = [...eligible].sort((a, b) => (owed.get(b) ?? 0) - (owed.get(a) ?? 0)).slice(0, ATTACKERS_PER_DEATH);
+      if (e.m >= 15) for (const k of credited) owed.set(k, (owed.get(k) ?? 0) - 1);
+      ev(e.m, {
+        type: 'CHAMPION_KILL',
+        killerId: credited[0],
+        victimId: e.id,
+        assistingParticipantIds: credited.slice(1),
+        position: POS[e.id]
+      });
+    }
   }
 
   return scoreMatch(

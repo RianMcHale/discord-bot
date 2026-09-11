@@ -53,7 +53,13 @@ const METRICS = [
   'dmgShare', 'tankShare', 'kp', 'lateKp', 'killShare',
   'csPerMin', 'goldPerMin', 'visionPerMin', 'wDeathsPerMin', 'epicShare',
   'jungleCs14', 'turretDmgPerMin', 'ccScore', 'healShield',
-  'gold14', 'xp14', 'cs14', 'platesEarly', 'platesLate'
+  'gold14', 'xp14', 'cs14', 'platesEarly', 'platesLate',
+  // Lane differentials. Not baselines — their median is 0 by construction, since
+  // every row's counterpart carries the negation. They are here for their *p90*,
+  // which is what a curve has to be scaled against: the hand-set lane scale put
+  // an ordinary 90th-percentile top lane at 92 and an ordinary support lane at
+  // 77, so the same quality of game scored differently by role.
+  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14'
 ];
 
 const median = (xs) => {
@@ -98,6 +104,36 @@ const allRows = fs
   })
   .filter(Boolean);
 
+// Gold earned after laning ends, per minute. Derived rather than collected, so
+// it needs no second pull: total gold is goldPerMin x minutes, and everything
+// before the bench minute is already in gold14.
+for (const r of allRows) {
+  const after = (r.minutes ?? 0) - 14;
+  r.postGoldPerMin =
+    after >= 3 && typeof r.goldPerMin === 'number' && typeof r.gold14 === 'number'
+      ? +((r.goldPerMin * r.minutes - r.gold14) / after).toFixed(1)
+      : null;
+}
+
+// How far ahead or behind a team's four lanes collectively are at 14. The jungle
+// rubric grades tempo against this, and its scale was hand-set the same way the
+// individual lane scales were. Stored on every row of the match so it comes out
+// of the per-role pass like any other metric; the jungler's row is the one read.
+{
+  const byMatch = new Map();
+  for (const r of allRows) {
+    if (!byMatch.has(r.matchId)) byMatch.set(r.matchId, []);
+    byMatch.get(r.matchId).push(r);
+  }
+  for (const [, rs] of byMatch) {
+    if (rs.length !== 10) continue;
+    const laneGold = (win) =>
+      rs.filter((r) => r.win === win && r.role !== 'JUNGLE').reduce((s, r) => s + (r.gold14 || 0), 0);
+    const diff = laneGold(true) - laneGold(false);
+    for (const r of rs) r.teamLaneGoldDiff14 = r.win ? diff : -diff;
+  }
+}
+
 const minRank = patchRank(PATCH_MIN);
 const rows = allRows.filter((r) => patchRank(r.patch) >= minRank);
 const droppedForPatch = allRows.length - rows.length;
@@ -107,6 +143,23 @@ const patches = {};
 for (const r of rows) patches[r.patch] = (patches[r.patch] || 0) + 1;
 const queues = {};
 for (const r of rows) queues[r.queueId] = (queues[r.queueId] || 0) + 1;
+
+// Population statistics that are not per-role. TYPICAL_TEAM_AVG_KP in roles.js
+// was hand-set to 0.55; measured it is 0.467, and the 15% error inflated every
+// player's participation score because the bar is rescaled by it.
+const byMatch = new Map();
+for (const r of rows) {
+  if (!byMatch.has(r.matchId)) byMatch.set(r.matchId, []);
+  byMatch.get(r.matchId).push(r);
+}
+const teamAvgKps = [];
+for (const [, rs] of byMatch) {
+  if (rs.length !== 10) continue;
+  for (const win of [true, false]) {
+    const side = rs.filter((r) => r.win === win);
+    if (side.length === 5) teamAvgKps.push(side.reduce((s, r) => s + (r.kp || 0), 0) / 5);
+  }
+}
 
 const byRole = {};
 for (const role of ROLES) {
@@ -142,6 +195,10 @@ const artifact = {
   },
   // Any role below the floor is advisory: the numbers are emitted so they can be
   // inspected, not so they can be trusted.
+  globals: {
+    teamAvgKp: median(teamAvgKps) === null ? null : +median(teamAvgKps).toFixed(4),
+    teamSides: teamAvgKps.length
+  },
   provisional: ROLES.some((r) => byRole[r].provisional),
   roles: byRole
 };
@@ -150,7 +207,7 @@ const artifact = {
 // produced it and loading a mismatched one is detectable (§7.4).
 artifact.calibrationVersion = crypto
   .createHash('sha256')
-  .update(JSON.stringify(artifact.roles))
+  .update(JSON.stringify({ roles: artifact.roles, globals: artifact.globals }))
   .digest('hex')
   .slice(0, 12);
 

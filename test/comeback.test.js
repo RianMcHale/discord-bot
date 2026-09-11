@@ -29,12 +29,25 @@ function adcGame({ deficit, swing, durationMinutes = 34 }) {
 
 const laneOf = (scored) => scored.p4.components.find((c) => c.key === 'lane').score;
 
+// The thresholds in this file were all written when the comeback was a flat ±28
+// points on a lane curve that put an ordinary 90th-percentile lane at 92. Both
+// halves of that were wrong, and fixing them shrank every number here:
+//
+//   * the curve is now scaled to the measured spread (p10 30, p90 72), so a
+//     given gold deficit sits far closer to par than it used to;
+//   * the comeback is a share of the distance back to par rather than a flat
+//     bonus, so it stays proportionate to how far behind you actually were;
+//   * a recovery is a head-to-head fact, and the squad set beta to 0.35, so it
+//     carries a third of the weight of "did you play well" by deliberate choice.
+//
+// So these assert direction and ordering, which are the real properties, and
+// keep only loose bounds on magnitude.
 test('losing lane then out-earning them scores better than staying lost', () => {
   const stayedLost = adcGame({ deficit: 1100, swing: 0 });
   const cameBack = adcGame({ deficit: 1100, swing: 3000 });
 
   assert.ok(
-    laneOf(cameBack) > laneOf(stayedLost) + 10,
+    laneOf(cameBack) > laneOf(stayedLost) + 3,
     `comeback ${laneOf(cameBack)} should clearly beat ${laneOf(stayedLost)}`
   );
 });
@@ -111,12 +124,30 @@ test('every role is credited for a comeback, jungle included', () => {
   const flat = wholeTeam({ recover: false });
   const back = wholeTeam({ recover: true });
 
-  for (const id of [1, 2, 3, 4, 5]) {
+  const creditFor = (id) => {
     const key = LANE_KEY(id);
     const before = flat[`p${id}`].components.find((c) => c.key === key).score;
     const after = back[`p${id}`].components.find((c) => c.key === key).score;
-    assert.ok(after > before + 10, `${ROLE_OF[id]} got no comeback credit (${before} -> ${after})`);
+    return { before, after, gained: after - before };
+  };
+
+  // What this guards is that no rubric is *excluded* from the mechanism — the
+  // comeback used to live inside laneComponent, which the jungle rubric never
+  // calls. So every role has to gain something.
+  for (const id of [1, 2, 3, 4, 5]) {
+    const { before, after, gained } = creditFor(id);
+    assert.ok(gained > 0, `${ROLE_OF[id]} got no comeback credit at all (${before} -> ${after})`);
   }
+
+  // The jungler is the one that silently got nothing, so it gets the real check.
+  assert.ok(creditFor(2).gained > 2, `jungle comeback is token (${creditFor(2).gained.toFixed(1)})`);
+
+  // The amounts differ by role, and that is correct rather than a rounding
+  // artifact: this scenario camps top, so top and mid are measured against an
+  // *expected* deficit that already excuses most of the 1200g they are down.
+  // Having been excused, they have little left to come back from. Bot lane took
+  // no pressure, so its recovery counts in full.
+  assert.ok(creditFor(5).gained > creditFor(1).gained, 'a lane that was never excused gains more');
 });
 
 test('the jungler’s comeback is measured across their lanes, not their own gold', () => {

@@ -272,7 +272,12 @@ test('counter-jungling moved to tempo and left jungle farm alone', () => {
 test('the jungler still gets the comeback, measured on the lanes they were in', () => {
   const flat = game({ where: 'top', topAhead: -3000, postSwing: 0 });
   const back = game({ where: 'top', topAhead: -3000, postSwing: 2000 });
-  assert.ok(back.tempo.score > flat.tempo.score + 5, 'lanes recovering after 14 has to count');
+  // Worth about a point, not the five it used to be, and the drop is the point.
+  // The comeback is a share of how far below par the lanes were, the lane curve
+  // is now scaled to the measured spread instead of being three times too sharp,
+  // and lane state is only 30% of tempo. Three multipliers that were each
+  // individually wrong used to compound into a large number.
+  assert.ok(back.tempo.score > flat.tempo.score + 1, 'lanes recovering after 14 has to count');
   assert.match(back.tempo.detail, /post-lane/);
 });
 

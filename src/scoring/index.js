@@ -95,6 +95,13 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
       composite: round1(clamp(composite, 0, 100)),
       grade: grade(composite),
       role: P.role,
+      // How the role was decided, and how sure of it (spec §5.2, finding F1).
+      // Persisted rather than discarded: when a counterpart comparison is wrong
+      // the failure is silent, so the only defence is being able to see which
+      // branch produced the assignment.
+      roleConfidence: P.roleConfidence,
+      roleBranch: P.roleBranch,
+      counterpartValid: P.counterpartValid,
       champion: P.champion,
       teamId: P.teamId,
       kda: P.kda,

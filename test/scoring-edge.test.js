@@ -27,10 +27,30 @@ test('a missing timeline changes the score but never breaks it', () => {
   assert.notEqual(withTl.p2.composite, without.p2.composite);
 });
 
-test('falls back to a role-neutral rubric when roles are unknown', () => {
+test('unusable role data is inferred where possible and conceded where not', () => {
+  // Riot's teamPosition is garbage here. The spec's §5.2 chain says infer what
+  // can be inferred rather than giving up on the whole lobby — and say so about
+  // the rest, instead of scoring them against a counterpart that isn't there.
   const scored = scoreMatch(plainMatch({ roleFor: () => 'Invalid' }), { trackedPuuids: [] });
-  assert.ok(allFinite(scored));
-  for (const s of Object.values(scored)) assert.equal(s.role, 'UNKNOWN');
+  assert.ok(allFinite(scored), 'every player still gets a finite score');
+
+  // Jungle is identifiable from jungle CS alone, so it resolves.
+  assert.equal(scored.p2.role, 'JUNGLE');
+  assert.equal(scored.p2.roleConfidence, 'MEDIUM', 'inferred, not asserted');
+
+  // The fixture gives nothing to identify a laner with, so those are conceded
+  // rather than guessed at.
+  assert.equal(scored.p3.role, 'UNKNOWN');
+  assert.equal(scored.p3.roleConfidence, 'LOW');
+  assert.equal(scored.p3.roleBranch, 'unresolved');
+});
+
+test('a clean lobby resolves at high confidence and says which branch', () => {
+  const scored = scoreMatch(plainMatch(), { trackedPuuids: [] });
+  for (const s of Object.values(scored)) {
+    assert.equal(s.roleConfidence, 'HIGH');
+    assert.equal(s.roleBranch, 'teamPosition');
+  }
 });
 
 test('handles a non-Summoners-Rift map', () => {

@@ -152,6 +152,27 @@ first, leaving the other two broken in exactly the same way for exactly the same
 A test now walks the source for cs comparisons that aren't inside a blend, so the next one
 can't be missed.
 
+**Lane was the last component with no absolute anchor at all**, and it is the heaviest one
+in three of the five rubrics. Two laners who both farmed badly went even and both scored
+50; two who both played a clean lane also both scored 50. The score could not tell those
+games apart, which is the question the squad actually wants answered. Lane now blends the
+counterpart comparison with gold and xp at 14 measured against the role's own bar.
+
+**And every curve is now scaled to the spread it actually grades.** The scales were
+hand-set, one number applied to all five roles, and none had been checked against a real
+distribution. Measured over ~4,900 player-games, the 90th-percentile top lane is 2022 gold
+ahead and the 90th-percentile support lane is 974 — so grading both on the same scale put
+an ordinary good top lane at **92** and an ordinary good support lane at **77**. That is a
+15-point gap in the heaviest component of either rubric, decided by role rather than by
+play, and over a season it decides benchings. Eight of twelve curves were out of tolerance;
+the worst was the jungler's objective-share bar, which sat at **1.0** — the metric's own
+ceiling — so that axis could only ever return exactly 50 no matter what the jungler did.
+
+`npm run scale-audit` prints what every curve does to the real sample, and
+`test/fairness.test.js` fails the build if the roles drift apart again. The target is the
+one curve that was already right: deaths put p10 at 32, the median at 50 and p90 at 72,
+for all five roles.
+
 **A dominant share scores like a dominant lead does.** Every "share of the team's X"
 metric — damage share, kill share, objective share, kill participation — went through the
 same curve as a head-to-head comparison, which divides by the sum of both values. That is
@@ -587,6 +608,23 @@ No test framework or extra dependencies — `node --test` with synthetic matches
 jungle-pressure caps, death multipliers), so the suite pins the behaviour those calls
 were made for: a low-impact jungler scores badly despite a good KDA, a camped laner
 isn't punished for it, and the skip cache never re-fetches a match it already rejected.
+
+Two of them guard the property the whole thing rests on — that a score means the same
+in every role, because the bench goes to whoever scores lowest:
+
+- **`parity.test.js`** — in a game where all ten players sit exactly on their role's
+  bar, every role scores near 50. This is the guard on any weight change.
+- **`fairness.test.js`** — the same question about *spread*. Parity says nothing about
+  it, and spread is what decides benchings: a role whose components swing wider gets
+  benched more often at identical skill. This runs every curve over the real sample and
+  fails if the roles drift apart. It **skips** when `data/calibration/rows.ndjson` is
+  absent (it is gitignored), so a fresh clone still passes — which also means it is only
+  as current as your last `npm run calibration-pull`.
+
+Both are derived from the live baselines rather than from hardcoded tables. That matters:
+hardcoding was fine while the bars were hand-set guesses written alongside the fixture,
+but the moment the bars became measured, a fixed table stopped describing an average game
+and the test started asserting that a below-median player scores 50.
 
 ## Data storage
 
