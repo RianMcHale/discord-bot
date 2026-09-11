@@ -348,8 +348,49 @@ Each match produces an **objective composite (0–100)** per player. The bot tra
 **rolling average** over each player's last N games (default 10, set via `ROLLING_WINDOW`)
 so one bad game doesn't bench someone who's normally solid.
 
-`/worst` and `/leaderboard` use the rolling average, not a single game, to make the actual
-bench call.
+`/leaderboard` uses the rolling average. **`/worst` does not** — the bench call is the one
+place where a mean is the wrong tool.
+
+### The bench call
+
+With about five games a session and a per-game score SD near 15, the standard error on a
+five-game mean is about **6.7 points**. Ranking six people by raw mean and benching the
+lowest means benching on noise — and worse, the person benched most often will be, in
+expectation, the one with the highest *variance* rather than the lowest mean. That is a
+real unfairness with a real victim, and it is invisible because the output looks like a
+number.
+
+`/worst` therefore does four things a sorted list of averages does not:
+
+- **Recency weighting** (λ = 0.97/day, halving at about 23 days), so form fades smoothly
+  instead of jumping when an old game falls out of a fixed window.
+- **Effective sample size.** Six games where five are from last month is not six games.
+  The eligibility minimum (`BENCH_MIN_EFFECTIVE_GAMES`, default 4) counts these, not raw
+  games.
+- **Empirical-Bayes shrinkage** toward the player's own long-run average — their career
+  mean once they have 30 qualifying games, the neutral 50 before that. The *strength* of
+  the shrinkage is measured from how much the squad's players actually differ, not
+  guessed: if the between-player spread cannot be separated from per-game noise, everyone
+  is pulled hard toward their own average and the bot says so.
+- **A 95% range, and a refusal to name anyone whose range overlaps the next player's** by
+  more than `BENCH_OVERLAP_TOLERANCE` (default 50%). It reports a tie instead — naming all
+  of the tied players rather than one, since picking one of three would be arbitrary.
+
+In practice that means the same command gives opposite answers on the same volume of data
+depending on whether the difference is real. Three players two points apart with an SD of
+11 over six games come back as **"too close to call"** with a 98% overlap. A player who is
+genuinely 25 points below the squad over eight games gets named, with a 0% overlap.
+
+Games that cannot support a bench are left out entirely: anything scored **without a
+timeline** (lane state, jungle pressure, death context and objective control all drop out
+of the rubric, so it is not the same measurement) and anything where the **role was
+uncertain** (a mis-resolved counterpart produces a plausible number rather than an error,
+so it looks exactly as trustworthy as a correct score). Those scores are still real and
+still show on `/profile`; they just cannot decide who sits out.
+
+And the call always shows its reason — which components are behind, what the rest of the
+squad averages on the same ones, and whether it is a pattern or one bad night. A bench
+decision with no visible reason is the voice-chat blame problem with extra latency.
 
 ## Setup
 
@@ -441,12 +482,17 @@ bench call.
   window — including the squad average that ratings are weighted against — so it
   answers "how are we playing lately", not "here's a slice of the all-time table".
   With no `period`, `/alltime` remains the genuine all-time record.
-- `/worst` — who the data says should be benched right now, **and why**. Alongside the
-  number it averages each rubric component across the window, so the call comes with the
-  reason attached (`Vision 39 · under 45 in 7 of 7 games — that's the pattern, not one
-  bad night`) plus what they're doing well. Only considers players who have hit the
-  minimum, so a single bad game can't get someone benched, and it says when the call is
-  too close between the bottom two to be a real verdict.
+- `/worst` — who the data says should be benched right now, **and why**, or that nobody
+  can be told apart. Reports a recency-weighted, shrunk rating with its **95% range**
+  (`47.5 [40.9 – 58.4]`) rather than a bare average, and refuses to name anyone whose
+  range overlaps the next player's by more than `BENCH_OVERLAP_TOLERANCE` (default 50%) —
+  which for a six-person squad is often the honest answer. Needs
+  `BENCH_MIN_EFFECTIVE_GAMES` (default 4) *recency-weighted* games, so neither a single
+  bad game nor a pile of stale ones can bench someone. Alongside the number it averages
+  each rubric component across the window and compares it to the rest of the squad, so the
+  call comes with the reason attached (`Vision 39 · squad 52 (-13) · under 45 in 7 of 7
+  games — that's the pattern, not one bad night`) plus what they're doing well. See
+  [The bench call](#the-bench-call) for why a mean on its own was the wrong tool.
 - `/benched` — the running tally of who has actually been benched, and which roles get
   benched most. Roles come first: each shows the count *and* the games played in that
   role, because "ADC benched 4 times" means something different across 10 games than

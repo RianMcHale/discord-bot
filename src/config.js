@@ -28,6 +28,19 @@ export const config = {
   // still shouldn't rank someone on a single game.
   alltimeMinGames: parseInt(process.env.ALLTIME_MIN_GAMES || '3', 10),
 
+  // The bench decision's two statistical thresholds (spec §8.3).
+  //
+  // `benchMinEffectiveGames` counts *recency-weighted* games, so six games where
+  // five are from last month is not six. Below it, a player cannot be benched by
+  // data at all.
+  //
+  // `benchOverlapTolerance` is how far the bottom two players' 95% ranges may
+  // overlap before /worst refuses to name either and reports a tie instead.
+  // Raising it makes the bot more willing to name someone; 1.0 disables the
+  // check entirely and goes back to benching on whoever happens to be lowest.
+  benchMinEffectiveGames: parseFloat(process.env.BENCH_MIN_EFFECTIVE_GAMES || '4'),
+  benchOverlapTolerance: parseFloat(process.env.BENCH_OVERLAP_TOLERANCE || '0.5'),
+
   // Discord user ids allowed to run destructive commands (/resetgames).
   // Defaults to the bot owner so it works without extra Railway config; override
   // with ADMIN_USER_IDS (comma-separated) to change who without a code change.
