@@ -43,6 +43,11 @@ const FIELD_MAP = {
   turretDmgPerMin: 'turretDmgPerMin',
   ccScore: 'ccScore',
   healShield: 'healShield',
+  // Damage share over gold share — what you did with what you got (§4.1).
+  // `goldShare` is the denominator of the bar it is graded against, not a score
+  // in its own right: taking more of the team's gold is neither good nor bad.
+  damagePerGoldShare: 'damagePerGoldShare',
+  goldShare: 'goldShare',
   // The lane component has never had an absolute anchor — spec F5 applied to the
   // heaviest component in three rubrics. These are what give it one.
   gold14: 'gold14',

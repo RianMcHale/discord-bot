@@ -59,7 +59,7 @@ const METRICS = [
   // which is what a curve has to be scaled against: the hand-set lane scale put
   // an ordinary 90th-percentile top lane at 92 and an ordinary support lane at
   // 77, so the same quality of game scored differently by role.
-  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14'
+  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14', 'goldShare', 'damagePerGoldShare'
 ];
 
 const median = (xs) => {
@@ -113,6 +113,30 @@ for (const r of allRows) {
     after >= 3 && typeof r.goldPerMin === 'number' && typeof r.gold14 === 'number'
       ? +((r.goldPerMin * r.minutes - r.gold14) / after).toFixed(1)
       : null;
+}
+
+// Damage share divided by gold share — spec §4.1's anti-snowball metric, the
+// third thing F4 asks for. Derived rather than collected: total gold is
+// goldPerMin x minutes, and the team total is the five rows on that side.
+{
+  const byMatch = new Map();
+  for (const r of allRows) {
+    if (!byMatch.has(r.matchId)) byMatch.set(r.matchId, []);
+    byMatch.get(r.matchId).push(r);
+  }
+  for (const [, rs] of byMatch) {
+    if (rs.length !== 10) continue;
+    for (const win of [true, false]) {
+      const side = rs.filter((r) => r.win === win);
+      if (side.length !== 5) continue;
+      const teamGold = side.reduce((s, r) => s + r.goldPerMin * r.minutes, 0);
+      for (const r of side) {
+        r.goldShare = teamGold > 0 ? +((r.goldPerMin * r.minutes) / teamGold).toFixed(4) : null;
+        r.damagePerGoldShare =
+          r.dmgShare != null && r.goldShare > 0 ? +(r.dmgShare / r.goldShare).toFixed(4) : null;
+      }
+    }
+  }
 }
 
 // How far ahead or behind a team's four lanes collectively are at 14. The jungle

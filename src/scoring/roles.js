@@ -28,23 +28,27 @@ import { applyCalibration, globalStat, diffScale, ratioScale, hasHeadroom } from
 // `killShare` is a share of the team's kills, so the five roles' figures sum to
 // 1 by construction. Carries take more of them than the two roles whose job is
 // to set the kill up.
+// `damagePerGoldShare` is damage share over gold share — par is the role's own
+// median, not 1.0, since a support's gold buys wards and a mid's buys damage.
+// These five are the measured medians, kept here as the fallback for a role
+// whose sample has not yet cleared the floor.
 const HAND_SET_BASELINE = {
-  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, lateKp: 0.555, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45 },
+  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, lateKp: 0.555, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45, damagePerGoldShare: 1.11, goldShare: 0.196 },
   // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
   // a jungler who kept farming between plays.
-  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, lateKp: 0.688, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75 },
-  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, lateKp: 0.644, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5 },
+  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, lateKp: 0.688, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75, damagePerGoldShare: 0.87, goldShare: 0.215 },
+  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, lateKp: 0.644, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5, damagePerGoldShare: 1.16, goldShare: 0.205 },
   // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
   // above: it is only used as the second anchor in a blend, so being roughly
   // right beats having no anchor at all.
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, lateKp: 0.622, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55 },
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, lateKp: 0.622, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55, damagePerGoldShare: 1, goldShare: 0.228 },
   // `ccScore` and `healShield` are the two axes a support can specialise on, and
   // they are bimodal by champion: an Alistar does no healing, a Soraka almost no
   // CC. Each is the bar for a support who *chose* that axis, so the higher of
   // the two is what gets graded — see `scoreSupport`.
-  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, lateKp: 0.688, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, ccScore: 55, healShield: 700 },
-  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, lateKp: 0.633, lateKp: 0.633, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5 }
+  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, lateKp: 0.688, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, damagePerGoldShare: 0.66, goldShare: 0.145, ccScore: 55, healShield: 700 },
+  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, lateKp: 0.633, lateKp: 0.633, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5, damagePerGoldShare: 1, goldShare: 0.2 }
 };
 
 /**
@@ -313,6 +317,48 @@ function combatComponent(
 
   const dpmScore = useDpm && opp ? versus(P.dpm, opp.dpm, { prior: 60, gain: 1.25 }) : null;
 
+  // What you did with what you got, rather than how much you got.
+  //
+  // This is the audit's F4: nearly every raw metric is contaminated by whether
+  // the team was ahead, so the score partly measures "did your team win" and
+  // then benches whoever was on the wrong side of a snowball they did not cause.
+  // Damage share and damage per minute both rise when you are winning, because
+  // you have more items.
+  //
+  // Dividing damage share by gold share removes the resource advantage and
+  // leaves the conversion. It measures clean: winners' median is 0.980 and
+  // losers' 0.979, a ratio of 1.001, the flattest of any metric in the model.
+  // It is also the one that answers "he was fed" versus "he was carrying" —
+  // being given 30% of the team's gold and doing 30% of its damage is par, and
+  // doing 40% on the same gold is not.
+  //
+  // It takes weight from `dpmScore` deliberately. Damage per minute is damage
+  // share multiplied by the team's total damage, so grading both double-counts
+  // the share (finding F3) and the only thing the second copy adds is how much
+  // damage the two teams did — a property of the game, not of the player.
+  // Graded against the bar only, with no head-to-head half — the one metric in
+  // the model that is deliberately not blended.
+  //
+  // Two reasons, and both are arguments the model already makes elsewhere.
+  // Comparing conversion to the enemy in your role is a comparison of champion
+  // classes rather than of play: a Soraka and a Pyke turn gold into champion
+  // damage at completely different rates by design, and grading that head-to-head
+  // is the matchup-dependence bug that farming already had. And the point of the
+  // metric is to be independent of how the game went, which a comparison against
+  // someone else's game is not.
+  //
+  // The bar is derived rather than stored: damage share divided by gold share,
+  // which makes it inherit the game-length slope that damage share already has.
+  // An ADC's damage share climbs with the clock while their gold share does not,
+  // so a stored constant would have marked down every short game.
+  const conversionBar = baseline.goldShare > 0 ? expectedDmgShare(P, ctx, baseline) / baseline.goldShare : null;
+  const conversionScore =
+    P.damagePerGoldShare == null || conversionBar == null
+      ? null
+      : versusShare(P.damagePerGoldShare, conversionBar, {
+          full: ratioScale(P.role, 'damagePerGoldShare', 0.8)
+        });
+
   // How much of the team's killing was you. Damage share alone misses this from
   // both directions: an assassin converts less total damage into more kills, and
   // a mage chipping a whole teamfight racks up damage that killed nobody. Kept
@@ -336,8 +382,9 @@ function combatComponent(
   // Weights need not sum to 1 — weightedMean renormalises, so opting a role into
   // an extra term dilutes the others rather than needing them restated.
   const score = weightedMean([
-    { score: shareScore, weight: 0.62 },
-    { score: dpmScore, weight: 0.38 },
+    { score: shareScore, weight: 0.5 },
+    { score: conversionScore, weight: 0.28 },
+    { score: dpmScore, weight: 0.22 },
     { score: killScore, weight: killShareWeight },
     { score: lateScore, weight: lateWeight }
   ]);
@@ -851,14 +898,34 @@ function scoreSupport(P, ctx) {
   // an Ashe support scored ~100 here — 22% of the grade, maxed in champion
   // select — because Ashe heals nothing, and the same Soraka opposite a Lulu
   // would have scored around 50 for an identical game.
-  const ccScore = blend(
-    opp ? versus(P.ccScore, opp.ccScore, { prior: 15, gain: 1.35 }) : null,
-    versus(P.ccScore, b.ccScore, { prior: 15, gain: 1.35 })
-  );
-  const healScore = blend(
-    opp ? versus(P.healShieldPerMin, opp.healShieldPerMin, { prior: 120, gain: 1.35 }) : null,
-    versus(P.healShieldPerMin, b.healShield, { prior: 120, gain: 1.35 })
-  );
+  // Absolute only, with no head-to-head half — for the same reason the combat
+  // rubric grades resource conversion absolutely.
+  //
+  // Adding the baseline fixed most of this, but the 35% that stayed head-to-head
+  // still carried the whole problem: across a realistic champion spread the
+  // head-to-head half alone swings about 70 points, which at beta 0.35 is the 22
+  // this component moved on the enemy pick. Cross-champion variance in CC and
+  // healing dwarfs within-champion variance, so that comparison is reading
+  // champion select, not play. An Alistar "beats" a Soraka on CC in every game
+  // either of them will ever play.
+  //
+  // Grading each axis against what a support who *chose* that axis does, and
+  // then taking the axis they actually specialised in, already handles champion
+  // class properly. The head-to-head half only undid it.
+  // Each axis against what a support who *chose* that axis does, never against
+  // the enemy support's figure on that axis.
+  const axisScores = (pl) =>
+    pl == null
+      ? null
+      : {
+          cc: versus(pl.ccScore, b.ccScore, { prior: 15, gain: 1.35 }),
+          heal: versus(pl.healShieldPerMin, b.healShield, { prior: 120, gain: 1.35 })
+        };
+  const mineAxes = axisScores(P);
+  const ccScore = mineAxes.cc;
+  const healScore = mineAxes.heal;
+  const ccVsBar = ccScore;
+  const healVsBar = healScore;
   const saveScore = opp ? versus(P.savesPerGame, opp.savesPerGame, { prior: 1.2, gain: 1.3 }) : null;
   // Leaving a won bot lane to make things happen elsewhere is the support's job,
   // not a dereliction of it. Takedowns away from their own lane during laning
@@ -878,7 +945,32 @@ function scoreSupport(P, ctx) {
     detail: participation.detail + (P.roamTakedowns > 0 ? ` · ${P.roamTakedowns} roam TD` : '')
   };
 
-  const specialised = Math.max(ccScore ?? 0, healScore ?? 0);
+  // Which axis they specialised in is decided by the *absolute* figures — by what
+  // they actually did — and only then compared to the enemy support on that same
+  // axis.
+  //
+  // Taking the max of the two blended scores instead let champion select pick the
+  // axis: an enemy support weak on both raises both head-to-head halves at once,
+  // and the max then selects whichever rose furthest. That compounding made this
+  // component swing 22 points on the enemy pick alone, at 22% of the grade —
+  // four times the matchup dependence of any other component in the model, and
+  // the whole of the support rubric's.
+  // Both sides are 0-100 scores against the same bars, so a realistic gap is a
+  // p90 support against a p10 one: about 42 points. Scaled by the same rule as
+  // every other curve, that lands at 72 rather than at 84.
+  const SPECIALIST_GAP_FULL = 98;
+  const bestAxis = (a) => (a == null ? null : Math.max(a.cc ?? 0, a.heal ?? 0));
+  const mineBest = bestAxis(mineAxes);
+  const theirBest = bestAxis(axisScores(opp));
+
+  // The head-to-head question for a support is not "did you land more CC than
+  // them" — across champion classes that has no answer, and asking it anyway is
+  // how this component came to swing 22 points on the enemy pick. It is "did you
+  // play your class better than they played theirs". Both sides are already
+  // graded against the same bars, so the two specialist scores are directly
+  // comparable in a way the raw figures are not: an Alistar's CC against a
+  // Soraka's healing, each measured against what a good one of those does.
+  const specialised = blend(theirBest == null ? null : fromDiff(mineBest - theirBest, SPECIALIST_GAP_FULL), mineBest);
   const utility = {
     score:
       ccScore === null && healScore === null

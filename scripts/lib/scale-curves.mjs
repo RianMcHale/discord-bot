@@ -121,6 +121,17 @@ const CURVES = {
     r.dmgShare == null
       ? null
       : versusShare(r.dmgShare, expectedDmgShare({ role: r.role }, ctxOf(r), BASELINE[r.role]), { full: ratioScale(r.role, 'dmgShare', 0.75) }),
+  // Damage share over gold share, against a bar derived the same way the rubric
+  // derives it — expected damage share divided by the role's gold share — so it
+  // inherits the game-length slope.
+  conversion: (r) => {
+    const bar = BASELINE[r.role].goldShare > 0
+      ? expectedDmgShare({ role: r.role }, ctxOf(r), BASELINE[r.role]) / BASELINE[r.role].goldShare
+      : null;
+    return r.damagePerGoldShare == null || bar == null
+      ? null
+      : versusShare(r.damagePerGoldShare, bar, { full: ratioScale(r.role, 'damagePerGoldShare', 0.8) });
+  },
   'tank share': (r) => (r.tankShare == null ? null : versusShare(r.tankShare, BASELINE[r.role].tankShare, { full: ratioScale(r.role, 'tankShare', 1.0) })),
   'kill share': (r) =>
     r.killShare == null

@@ -173,6 +173,35 @@ ceiling — so that axis could only ever return exactly 50 no matter what the ju
 one curve that was already right: deaths put p10 at 32, the median at 50 and p90 at 72,
 for all five roles.
 
+**"He was fed" and "he was carrying" are now different scores.** Damage share rises when
+you're winning, because you have more items — so scoring it raw means the score partly
+measures whether your team won, and then benches whoever was on the wrong side of a
+snowball they didn't cause. Damage share divided by **gold share** is the conditioned
+version: what you did with what you got. Across the sample it is the flattest metric in
+the model — winners' median 0.980, losers' 0.979, a ratio of 1.001 — so it measures play
+rather than outcome. Two ADCs who both did 30% of their team's damage now score
+differently if one needed 30% of its gold and the other needed 20%.
+
+Par is the role's own conversion rate, not 1.0: a mid laner's gold buys damage and a
+support's buys wards, so the bars run from 1.16 for mid down to 0.66 for support. And the
+bar is *derived* as expected damage share ÷ gold share rather than stored, so it inherits
+the game-length slope damage share already has — otherwise every short ADC game would
+read as poor conversion.
+
+It takes its weight from damage-per-minute, deliberately. Damage per minute is damage
+share multiplied by the team's total damage, so grading both double-counts the share, and
+the only thing the second copy adds is how much damage the two teams did — a property of
+the game rather than of the player.
+
+**Two metrics are graded absolutely with no head-to-head half at all**, against the
+general rule. Resource conversion is one. The support's CC and heal/shield axes are the
+other: cross-champion variance dwarfs within-champion variance, so comparing them to the
+enemy support reads champion select rather than play — an Alistar "beats" a Soraka on CC
+in every game either will ever play. That comparison was making the support's Utility
+component swing 22 points on the enemy pick alone, at 22% of the grade. What replaced it
+is a comparison that survives the champion difference: **how well each support played
+their own class**, since both sides are already measured against the same specialist bars.
+
 **A dominant share scores like a dominant lead does.** Every "share of the team's X"
 metric — damage share, kill share, objective share, kill participation — went through the
 same curve as a head-to-head comparison, which divides by the sum of both values. That is

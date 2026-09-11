@@ -346,6 +346,9 @@ export function buildContext(match, timeline = null) {
     const teamKills = info.participants
       .filter((q) => q.teamId === p.teamId)
       .reduce((s, q) => s + q.kills, 0);
+    const teamGold = info.participants
+      .filter((q) => q.teamId === p.teamId)
+      .reduce((s, q) => s + (q.goldEarned || 0), 0);
 
     return {
       puuid: p.puuid,
@@ -380,6 +383,24 @@ export function buildContext(match, timeline = null) {
       dpm: Number.isFinite(ch.damagePerMinute)
         ? ch.damagePerMinute
         : safeDiv(p.totalDamageDealtToChampions, minutes),
+      goldShare: teamGold > 0 ? (p.goldEarned || 0) / teamGold : null,
+      // Damage share divided by gold share: what you did with what you got.
+      //
+      // Finding F4 — nearly every raw metric is contaminated by whether the team
+      // was ahead, so the score partly measures "did your team win" and then
+      // benches whoever was on the wrong side of a snowball they did not cause.
+      // Damage share rises when you are winning because you have more items.
+      //
+      // This is the conditioned version, and it measures clean: across the
+      // sample its median is 0.980 for winners and 0.979 for losers, a ratio of
+      // 1.001. For comparison, post-laning gold per minute runs 1.27x higher for
+      // winners, which is why that one is not used as an absolute bar.
+      //
+      // Above 1 means converting resources above what the role usually does.
+      damagePerGoldShare:
+        Number.isFinite(ch.teamDamagePercentage) && teamGold > 0 && p.goldEarned > 0
+          ? ch.teamDamagePercentage / ((p.goldEarned || 0) / teamGold)
+          : null,
       goldPerMin: safeDiv(p.goldEarned, minutes),
       csPerMin: safeDiv((p.totalMinionsKilled || 0) + (p.neutralMinionsKilled || 0), minutes),
       jungleCsPerMin: safeDiv(p.neutralMinionsKilled || 0, minutes),
