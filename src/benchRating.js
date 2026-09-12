@@ -296,7 +296,12 @@ export function computeBenchRatings({
         riotName: r.riotName,
         displayName: r.displayName,
         gamesPlayed: r.scores.length,
-        nEff: Math.round(nEff * 10) / 10,
+        // Floored, not rounded. 3.995 rounds to 4.0 and then sits next to
+        // "4 effective games needed" looking like it qualifies, which reads as a
+        // bug in the eligibility rule rather than a rounding artifact. Flooring
+        // guarantees the displayed figure never claims a threshold it has not
+        // actually reached.
+        nEff: Math.floor(nEff * 10) / 10,
         rawMean: round1(mean(r.scores)),
         // Display only (§8.4). Never enters the rating, the interval or the verdict.
         floor: round1(floorOf(r.scores)),

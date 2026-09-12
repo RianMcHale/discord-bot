@@ -5,50 +5,14 @@ function scoreOf(game, discordId) {
   return game.scores[discordId].composite;
 }
 
-/**
- * Recent form, over each player's OWN last `windowSize` games — not the squad's.
- * A player who sat out three of the last ten is still measured across ten of
- * their own, so nobody is judged on a shorter record than everyone else.
- *
- * Split into `ranked` and `provisional` around `minGames`: a rolling average
- * over one or two games is noise, and `/worst` benches people on this.
- *
- * @returns {{ranked: object[], provisional: object[], minGames: number}}
- *   `ranked` is sorted ascending (worst first); `provisional` is sorted by how
- *   close each player is to qualifying.
- */
-export function computeRollingStats(windowSize, { minGames = 1 } = {}) {
-  const players = db.allPlayers();
-
-  const stats = players
-    .map((player) => {
-      const games = db.gamesForPlayer(player.discordId, windowSize); // most recent first
-      const scores = games.map((g) => scoreOf(g, player.discordId));
-      const rollingAverage =
-        scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
-
-      return {
-        discordId: player.discordId,
-        riotName: `${player.riotGameName}#${player.riotTagLine}`,
-        displayName: player.riotGameName,
-        gamesPlayed: scores.length,
-        rollingAverage,
-        recentScores: scores,
-        // What they've been repeatedly bad at over this window — the reason
-        // behind the number, which is what a bench call has to justify.
-        byComponent: aggregateComponents(games, player.discordId)
-      };
-    })
-    // Players with zero scored games are excluded entirely — there is nothing to
-    // judge yet, not even provisionally.
-    .filter((s) => s.gamesPlayed > 0);
-
-  return {
-    minGames,
-    ranked: stats.filter((s) => s.gamesPlayed >= minGames).sort((a, b) => a.rollingAverage - b.rollingAverage),
-    provisional: stats.filter((s) => s.gamesPlayed < minGames).sort((a, b) => b.gamesPlayed - a.gamesPlayed)
-  };
-}
+//  lived here: a plain mean over each player's last N
+// games, used by /leaderboard while /worst used the shrunk, recency-weighted
+// rating in benchRating.js. The two disagreed — on the same eight games the
+// leaderboard showed an 8.5-point gap where /worst found none — so the
+// leaderboard moved onto the same rating and this became a second answer to a
+// question that should only have one. Removed rather than left unused, because
+// an unused implementation of exactly the wrong thing is how the disagreement
+// comes back.
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round1 = (v) => (v === null ? null : Math.round(v * 10) / 10);

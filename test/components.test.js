@@ -7,7 +7,7 @@ import { useTempDb } from './helpers/tempDb.js';
 
 useTempDb();
 const { db } = await import('../src/storage.js');
-const { aggregateComponents, computeRollingStats, computeCareerStats } = await import('../src/rollingStats.js');
+const { aggregateComponents, computeCareerStats } = await import('../src/rollingStats.js');
 const worst = await import('../src/commands/worst.js');
 const profile = await import('../src/commands/profile.js');
 
@@ -108,11 +108,18 @@ test('games stored before components existed do not break aggregation', () => {
   assert.deepEqual(aggregateComponents(db.gamesForPlayer('old'), 'old'), []);
 });
 
-test('rolling and career stats both carry the breakdown', () => {
+test('recent and career stats both carry the breakdown', async () => {
+  // The bench rating replaced the old rolling-stats path, and has to still carry
+  // the per-component breakdown — it is what turns "you scored 44" into a claim
+  // somebody can argue with.
+  const { computeBenchRatings } = await import('../src/benchRating.js');
   seed({ visionRun: [36, 41, 33, 44, 39] });
-  const rolling = computeRollingStats(10, { minGames: 5 }).ranked.find((s) => s.discordId === 'weak');
+
+  const rated = computeBenchRatings({ window: 10 });
+  const recent = [...rated.ranked, ...rated.provisional].find((s) => s.discordId === 'weak');
   const career = computeCareerStats().stats.find((s) => s.discordId === 'weak');
-  assert.equal(rolling.byComponent[0].key, 'vision');
+
+  assert.equal(recent.byComponent[0].key, 'vision');
   assert.equal(career.byComponent[0].key, 'vision');
 });
 

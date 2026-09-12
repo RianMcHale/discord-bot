@@ -4,7 +4,7 @@ import { useTempDb, gameRecord, playerScore } from './helpers/tempDb.js';
 
 useTempDb();
 const { db } = await import('../src/storage.js');
-const { computeRollingStats, computeCareerStats } = await import('../src/rollingStats.js');
+const { computeCareerStats } = await import('../src/rollingStats.js');
 
 const DAY = 86400000;
 
@@ -30,56 +30,10 @@ PLAN.forEach((row, i) => {
   db.saveGame(`G${i}`, gameRecord({ matchId: `G${i}`, playedAt: 1000 + i * DAY, scores }));
 });
 
-test('rolling stats are worst-first and windowed', () => {
-  const { ranked } = computeRollingStats(10);
-  assert.deepEqual(ranked.map((s) => s.discordId), ['slumping', 'steady']);
-  // Only the last three games: slumping averages 30, steady 60.
-  const recent = computeRollingStats(3).ranked;
-  assert.equal(recent.find((s) => s.discordId === 'slumping').rollingAverage, 30);
-  assert.equal(recent.find((s) => s.discordId === 'steady').rollingAverage, 60);
-});
-
-test('the window is each player’s own games, not the squad’s', () => {
-  // `benchwarmer` sat out everything so far. Give them two recent games and the
-  // established players must still be measured across their own full window.
-  db.saveGame('B1', gameRecord({ matchId: 'B1', playedAt: 7e6, scores: { benchwarmer: playerScore({ composite: 80, role: 'TOP' }) } }));
-  db.saveGame('B2', gameRecord({ matchId: 'B2', playedAt: 7e6 + DAY, scores: { benchwarmer: playerScore({ composite: 80, role: 'TOP' }) } }));
-
-  const { ranked, provisional } = computeRollingStats(10, { minGames: 5 });
-  const all = [...ranked, ...provisional];
-
-  assert.equal(all.find((s) => s.discordId === 'benchwarmer').gamesPlayed, 2);
-  assert.equal(all.find((s) => s.discordId === 'steady').gamesPlayed, 6, 'unaffected by another player’s games');
-
-  db.removeGames(['B1', 'B2']);
-});
-
-test('players with no games are excluded rather than ranked last', () => {
-  const { ranked, provisional } = computeRollingStats(10);
-  const ids = [...ranked, ...provisional].map((s) => s.discordId);
-  assert.ok(!ids.includes('benchwarmer'), 'a player who has not played cannot be the worst');
-});
-
-test('a minimum splits ranked from provisional without hiding anyone', () => {
-  db.saveGame('T1', gameRecord({ matchId: 'T1', playedAt: 6e6, scores: { benchwarmer: playerScore({ composite: 20, role: 'TOP' }) } }));
-
-  const { ranked, provisional, minGames } = computeRollingStats(10, { minGames: 5 });
-
-  assert.equal(minGames, 5);
-  assert.deepEqual(ranked.map((s) => s.discordId), ['slumping', 'steady'], 'both have 6 games');
-  assert.deepEqual(provisional.map((s) => s.discordId), ['benchwarmer'], 'one game is not enough to rank');
-  // Crucially, the worst *ranked* player is not the 20-scoring newcomer.
-  assert.equal(ranked[0].discordId, 'slumping', 'a single bad game cannot get someone benched');
-  assert.equal(provisional[0].rollingAverage, 20, 'their number is still available to show');
-
-  db.removeGames(['T1']);
-});
-
-test('a minimum of 1 ranks everyone who has played', () => {
-  const { ranked, provisional } = computeRollingStats(10, { minGames: 1 });
-  assert.equal(provisional.length, 0);
-  assert.ok(ranked.length >= 2);
-});
+// The rolling-stats tests were here. They covered , which
+// /leaderboard no longer uses and which has been removed; the one property
+// worth keeping — that each player is measured over their OWN last games — now
+// lives in leaderboard.test.js against the rating that replaced it.
 
 test('career stats rank by overall average, best first', () => {
   const { stats, totalGames } = computeCareerStats();

@@ -32,9 +32,14 @@ export const config = {
   // only bring back games inside this window. Widen it temporarily if you are
   // re-scoring history after a scoring change.
   maxGameAgeDays: parseInt(process.env.MAX_GAME_AGE_DAYS || '7', 10),
-  // Games needed before someone can be ranked — or benched — on recent form.
-  // A bench call off one or two games is noise, not evidence.
-  leaderboardMinGames: parseInt(process.env.LEADERBOARD_MIN_GAMES || '5', 10),
+  // `LEADERBOARD_MIN_GAMES` was here. The leaderboard now uses the same rating
+  // as /worst, so it uses the same eligibility rule too —
+  // `BENCH_MIN_EFFECTIVE_GAMES`, which counts recency-weighted games rather than
+  // raw ones. Two thresholds for one question is how the two commands came to
+  // disagree about who was even on the board.
+  //
+  // If it is set in the environment it now does nothing; the replacement is
+  // BENCH_MIN_EFFECTIVE_GAMES (default 4).
   // Games needed to appear on the all-time standings. Lower than the recent-form
   // minimum because it's a career record, not a bench call — but a leaderboard
   // still shouldn't rank someone on a single game.

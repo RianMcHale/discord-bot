@@ -507,11 +507,16 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   and most-played champions. Also a **per-component breakdown** averaged across every
   game — per-role tells you which role suits them, this tells you what they're doing
   wrong inside it. `/alltime` is the squad view; this is the individual one.
-- `/leaderboard` — recent form: each player's average over **their own** last
-  `ROLLING_WINDOW` games (default 10), best to worst. Someone who sat out three of the
-  squad's last ten is still measured across ten of their own, so nobody is judged on a
-  shorter record than everyone else. Needs `LEADERBOARD_MIN_GAMES` games (default 5) to
-  be ranked; anyone below that is listed separately with their progress toward it.
+- `/leaderboard` — recent form over **their own** last `ROLLING_WINDOW` games (default 10),
+  best to worst. Someone who sat out three of the squad's last ten is still measured across
+  ten of their own, so nobody is judged on a shorter record than everyone else.
+
+  **Uses exactly the same rating as `/worst`** — recency-weighted, shrunk, with a 95% range
+  — so the two can never disagree. They used to: on the same eight games the leaderboard
+  showed one player 8.5 points below another while `/worst` called the same pair
+  indistinguishable, and a third player appeared on one and not the other. That's finding
+  F6 arriving through the command people read most casually. Where two ranges overlap the
+  board says so, because printing them as 1 and 2 implies a gap the games don't support.
 - `/alltime` — career standings across **every** game ever scored. Per player:
   overall average, games, win rate, best and worst single game, how many times
   they finished bottom, whether recent form is above or below their own average,
