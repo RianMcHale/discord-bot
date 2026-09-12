@@ -108,6 +108,14 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
       win: P.win,
       isTracked: trackedPuuids.includes(P.puuid),
       dataQuality: ctx.hasTimeline ? 'full' : 'partial',
+      // Whether the game was a real ten-player game (spec §12.1). A player who
+      // left distorts all ten scores, not just the one opposite them: their four
+      // team-mates split a team total between four rather than five so every
+      // share on that side inflates, and the other five get a free lane. Scored
+      // and shown either way — people want to see the game — but it cannot
+      // decide a bench, on the same reasoning as a game with no timeline.
+      lobbyIntact: ctx.lobbyIntact,
+      earlySurrender: ctx.earlySurrender,
       // Which baselines produced this number (spec F9). Null while the model is
       // running on hand-set values. Stored per game so a rolling average can
       // tell whether it is mixing scores that mean different things.

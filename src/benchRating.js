@@ -78,6 +78,15 @@ export function isBenchQuality(game, discordId) {
   if ((s.dataQuality ?? game.dataQuality) !== 'full') return false;
   if (s.roleConfidence === 'LOW') return false;
   if (s.counterpartValid === false) return false;
+  // A game somebody left, or that Riot itself called off early. Both are 4v5 for
+  // most of their length, and a 4v5 inflates every share metric on the short
+  // side while handing the other five a free lane — so all ten numbers are
+  // measuring the absence rather than the players.
+  //
+  // `!== false` rather than `=== true`, because games stored before this existed
+  // carry neither field and should keep counting.
+  if (s.lobbyIntact === false) return false;
+  if (s.earlySurrender === true) return false;
   return true;
 }
 

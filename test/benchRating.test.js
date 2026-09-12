@@ -203,3 +203,33 @@ test('a player who was not in the game is not scored zero for it', () => {
   assert.equal(isBenchQuality(game(), 'someone-else'), false);
   assert.equal(isBenchQuality(game({ composite: null }), 'u1'), false);
 });
+
+// ---------------------------------------------------------------------------
+// Lobby integrity (spec §12.1)
+//
+// A player who leaves distorts all ten scores, not just the one opposite them.
+// Their four team-mates split a team total between four rather than five, so
+// every share on that side inflates; the other five get a free lane and free
+// gold. The numbers are measuring the absence.
+// ---------------------------------------------------------------------------
+
+test('a game somebody left cannot bench anyone', () => {
+  assert.equal(isBenchQuality(game({ lobbyIntact: true }), 'u1'), true);
+  assert.equal(isBenchQuality(game({ lobbyIntact: false }), 'u1'), false);
+});
+
+test('a game Riot called off early cannot bench anyone', () => {
+  // An early surrender is a 4v5 by definition — it is the option a team gets
+  // *because* somebody did not connect.
+  assert.equal(isBenchQuality(game({ earlySurrender: true }), 'u1'), false);
+  assert.equal(isBenchQuality(game({ earlySurrender: false }), 'u1'), true);
+});
+
+test('games stored before the check existed still count', () => {
+  // Neither field is present on older rows. Treating "unknown" as "broken" would
+  // silently empty the board of every game played before today.
+  const old = game();
+  delete old.scores.u1.lobbyIntact;
+  delete old.scores.u1.earlySurrender;
+  assert.equal(isBenchQuality(old, 'u1'), true);
+});

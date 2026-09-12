@@ -232,8 +232,16 @@ export function counterpartIsValid(p, info) {
   if (!p) return false;
   if (p.gameEndedInEarlySurrender) return false;
   // `timePlayed` well under the game's length means they were not there for it.
+  //
+  // A *missing* `timePlayed` means no such thing, and the distinction matters:
+  // treating absent-as-zero marked every player in every payload without the
+  // field as having left, which reads as a lobby nobody turned up to. Riot does
+  // report it, so this only fires on older or partial payloads — but the cost of
+  // being wrong is excluding every game from every bench decision, so it is
+  // checked rather than assumed.
   const duration = durationSeconds(info);
-  if (duration > 0 && (p.timePlayed || 0) / duration < 0.8) return false;
+  const played = p.timePlayed;
+  if (duration > 0 && Number.isFinite(played) && played > 0 && played / duration < 0.8) return false;
   return true;
 }
 
@@ -493,6 +501,19 @@ export function buildContext(match, timeline = null) {
   const byId = new Map(players.map((p) => [p.participantId, p]));
   const byPuuid = new Map(players.map((p) => [p.puuid, p]));
 
+  // Anyone who was not actually there for the game (spec §12.1).
+  //
+  // `counterpartIsValid` already caught this one player at a time, which fixed
+  // the comparison against *them* and nothing else. An absent player distorts
+  // the whole lobby: their four team-mates split 100% of a team total between
+  // them so every share on that side inflates, and the other five get free gold
+  // and a free lane. Ten scores are affected, not one.
+  //
+  // So it is recorded at the lobby level. The game is still scored and still
+  // posted — people want to see it — but it cannot decide a bench, on the same
+  // reasoning as a game scored without a timeline.
+  const absent = info.participants.filter((p) => !counterpartIsValid(p, info));
+
   // Average kill participation across each team. Kill participation is a share
   // of your own team's kills, so it compresses hard when a game produces a lot
   // of them: in a 38-kill stomp full of solo picks, nobody can be present for
@@ -529,6 +550,10 @@ export function buildContext(match, timeline = null) {
     queueId: info.queueId,
     isSummonersRift,
     hasTimeline,
+    // Who was not there, and whether Riot itself called the game off early.
+    absentParticipants: absent.map((p) => p.participantId),
+    lobbyIntact: absent.length === 0,
+    earlySurrender: info.participants.some((p) => p.gameEndedInEarlySurrender),
     benchMinute: null,
     players,
     byPuuid,

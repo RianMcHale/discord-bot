@@ -406,12 +406,19 @@ depending on whether the difference is real. Three players two points apart with
 11 over six games come back as **"too close to call"** with a 98% overlap. A player who is
 genuinely 25 points below the squad over eight games gets named, with a 0% overlap.
 
-Games that cannot support a bench are left out entirely: anything scored **without a
-timeline** (lane state, jungle pressure, death context and objective control all drop out
-of the rubric, so it is not the same measurement) and anything where the **role was
-uncertain** (a mis-resolved counterpart produces a plausible number rather than an error,
-so it looks exactly as trustworthy as a correct score). Those scores are still real and
-still show on `/profile`; they just cannot decide who sits out.
+Games that cannot support a bench are left out entirely:
+
+- **No timeline** — lane state, jungle pressure, death context and objective control all
+  drop out of the rubric, so it isn't the same measurement.
+- **An uncertain role** — a mis-resolved counterpart produces a plausible number rather
+  than an error, so it looks exactly as trustworthy as a correct score.
+- **Somebody left, or Riot called the game off early.** A 4v5 distorts all ten scores, not
+  just the one opposite the absence: their four team-mates split a team total between four
+  rather than five so every share on that side inflates, and the other five get a free lane
+  and free gold.
+
+Those scores are still real and still show on `/profile`; they just cannot decide who sits
+out.
 
 And the call always shows its reason — which components are behind, what the rest of the
 squad averages on the same ones, and whether it is a pattern or one bad night. A bench
@@ -774,7 +781,25 @@ jungle-pressure caps, death multipliers), so the suite pins the behaviour those 
 were made for: a low-impact jungler scores badly despite a good KDA, a camped laner
 isn't punished for it, and the skip cache never re-fetches a match it already rejected.
 
-Two of them guard the property the whole thing rests on — that a score means the same
+**`properties.test.js`** asserts things that must hold for *every* input rather than for
+one fixture, because each is a class of bug that produces plausible-looking scores instead
+of errors:
+
+- **Swapping the two teams changes nothing.** Every metric is a share of a team total or a
+  comparison to a counterpart, so a side bias would mean blue side scores better than red
+  for free — a bench decision made by the coin flip at champion select. (There is no bias.
+  A "consistent" swap has to reflect map positions across the `x + y = 15000` diagonal too,
+  or you're testing a different game rather than a mirrored one.)
+- **Determinism** — the same game scores identically twice, scoring doesn't mutate its
+  input, and participant order doesn't matter.
+- **Monotonicity** — more CS never costs points; an extra solo death always does.
+- **Length invariance** — the same rates at 24 and 40 minutes score the same.
+- **Anti-inflation on a stomp** — not every winner may score above 65 and not every loser
+  below 35. This is the direct test of whether the F4 conditioning works, because if a
+  blowout pushes the whole lobby to the extremes the model is measuring the scoreboard.
+- **Graceful degradation** — no `challenges` block still scores, and within 8 points.
+
+Two more guard the property the whole thing rests on — that a score means the same
 in every role, because the bench goes to whoever scores lowest:
 
 - **`parity.test.js`** — in a game where all ten players sit exactly on their role's
