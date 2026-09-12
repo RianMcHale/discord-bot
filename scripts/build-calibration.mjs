@@ -59,7 +59,7 @@ const METRICS = [
   // which is what a curve has to be scaled against: the hand-set lane scale put
   // an ordinary 90th-percentile top lane at 92 and an ordinary support lane at
   // 77, so the same quality of game scored differently by role.
-  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14', 'goldShare', 'damagePerGoldShare'
+  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14', 'goldShare', 'damagePerGoldShare', 'killPerDamageShare'
 ];
 
 const median = (xs) => {
@@ -134,6 +134,10 @@ for (const r of allRows) {
         r.goldShare = teamGold > 0 ? +((r.goldPerMin * r.minutes) / teamGold).toFixed(4) : null;
         r.damagePerGoldShare =
           r.dmgShare != null && r.goldShare > 0 ? +(r.dmgShare / r.goldShare).toFixed(4) : null;
+        // Did the damage convert? Spec 12.3's conflicting-metrics requirement:
+        // damage share alone is farmable by poking a tank in a lost teamfight.
+        r.killPerDamageShare =
+          r.killShare != null && r.dmgShare > 0 ? +(r.killShare / r.dmgShare).toFixed(4) : null;
       }
     }
   }

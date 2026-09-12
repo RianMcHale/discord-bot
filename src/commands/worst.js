@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import { computeBenchRatings, benchVerdict } from '../benchRating.js';
 import { config } from '../config.js';
+import { NOT_MEASURED } from '../scoring/glossary.js';
 
 export const data = new SlashCommandBuilder()
   .setName('worst')
@@ -152,11 +153,16 @@ export async function execute(interaction) {
     notes.push(`${staleCalibration} player${staleCalibration === 1 ? ' has' : 's have'} games from an older calibration — \`/resetgames\` re-scores them`);
   }
 
+  // The disclosure line (spec §10.4), permanently and without being asked.
+  // Four of the signals the squad originally wanted are not observable from the
+  // API at all, and a bench call that does not say so is overclaiming — finding
+  // F10. Kept short so it survives being read every time.
   embed.setFooter({
     text:
       `Recency-weighted over each player's last ${config.rollingWindow} games · ` +
       `minimum ${minEffectiveGames} effective` +
-      (notes.length ? `\n${notes.join(' · ')}` : '')
+      (notes.length ? `\n${notes.join(' · ')}` : '') +
+      `\nNot measured: ${NOT_MEASURED.join(', ').toLowerCase()}. /explain shows how any of this is worked out.`
   });
 
   if (provisional.length > 0) {

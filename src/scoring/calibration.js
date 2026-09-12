@@ -47,6 +47,8 @@ const FIELD_MAP = {
   // `goldShare` is the denominator of the bar it is graded against, not a score
   // in its own right: taking more of the team's gold is neither good nor bad.
   damagePerGoldShare: 'damagePerGoldShare',
+  // Kills per unit of damage share — did the damage decide anything (§12.3).
+  killPerDamageShare: 'killPerDamageShare',
   goldShare: 'goldShare',
   // The lane component has never had an absolute anchor — spec F5 applied to the
   // heaviest component in three rubrics. These are what give it one.

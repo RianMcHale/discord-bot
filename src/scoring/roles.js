@@ -33,22 +33,22 @@ import { applyCalibration, globalStat, diffScale, ratioScale, hasHeadroom } from
 // These five are the measured medians, kept here as the fallback for a role
 // whose sample has not yet cleared the floor.
 const HAND_SET_BASELINE = {
-  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, lateKp: 0.555, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45, damagePerGoldShare: 1.11, goldShare: 0.196 },
+  TOP: { dmgShare: 0.21, tankShare: 0.27, kp: 0.5, lateKp: 0.555, killShare: 0.2, csPerMin: 6.4, turretDmgPerMin: 220, visionPerMin: 0.55, wDeathsPerMin: 0.2, epicShare: 0.45, damagePerGoldShare: 1.11, goldShare: 0.196, killPerDamageShare: 0.8 },
   // `jungleCs14` is jungle *monsters* by the 14-minute mark, not camps: a full
   // six-camp clear is roughly eighteen of them, so ~88 is about five clears —
   // a jungler who kept farming between plays.
-  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, lateKp: 0.688, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75, damagePerGoldShare: 0.87, goldShare: 0.215 },
-  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, lateKp: 0.644, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5, damagePerGoldShare: 1.16, goldShare: 0.205 },
+  JUNGLE: { dmgShare: 0.18, tankShare: 0.21, kp: 0.62, lateKp: 0.688, killShare: 0.19, csPerMin: 5.6, jungleCs14: 88, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.75, damagePerGoldShare: 0.87, goldShare: 0.215, killPerDamageShare: 1.24 },
+  MIDDLE: { dmgShare: 0.26, tankShare: 0.17, kp: 0.58, lateKp: 0.644, killShare: 0.24, csPerMin: 7.0, turretDmgPerMin: 160, visionPerMin: 0.65, wDeathsPerMin: 0.18, epicShare: 0.5, damagePerGoldShare: 1.16, goldShare: 0.205, killPerDamageShare: 0.99 },
   // `goldPerMin` is an estimate rather than a measured figure, like `jungleCs14`
   // above: it is only used as the second anchor in a blend, so being roughly
   // right beats having no anchor at all.
-  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, lateKp: 0.622, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55, damagePerGoldShare: 1, goldShare: 0.228 },
+  BOTTOM: { dmgShare: 0.28, tankShare: 0.15, kp: 0.56, lateKp: 0.622, killShare: 0.26, csPerMin: 7.6, goldPerMin: 460, turretDmgPerMin: 280, visionPerMin: 0.55, wDeathsPerMin: 0.17, epicShare: 0.55, damagePerGoldShare: 1, goldShare: 0.228, killPerDamageShare: 1.01 },
   // `ccScore` and `healShield` are the two axes a support can specialise on, and
   // they are bimodal by champion: an Alistar does no healing, a Soraka almost no
   // CC. Each is the bar for a support who *chose* that axis, so the higher of
   // the two is what gets graded — see `scoreSupport`.
-  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, lateKp: 0.688, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, damagePerGoldShare: 0.66, goldShare: 0.145, ccScore: 55, healShield: 700 },
-  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, lateKp: 0.633, lateKp: 0.633, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5, damagePerGoldShare: 1, goldShare: 0.2 }
+  UTILITY: { dmgShare: 0.09, tankShare: 0.2, kp: 0.62, lateKp: 0.688, killShare: 0.11, csPerMin: 1.2, visionPerMin: 1.9, wDeathsPerMin: 0.22, epicShare: 0.4, damagePerGoldShare: 0.66, goldShare: 0.145, killPerDamageShare: 0.66, ccScore: 55, healShield: 700 },
+  UNKNOWN: { dmgShare: 0.2, tankShare: 0.2, kp: 0.57, lateKp: 0.633, lateKp: 0.633, killShare: 0.2, csPerMin: 5.5, visionPerMin: 0.9, wDeathsPerMin: 0.19, epicShare: 0.5, damagePerGoldShare: 1, goldShare: 0.2, killPerDamageShare: 0.95 }
 };
 
 /**
@@ -301,18 +301,97 @@ function combatComponent(
   { frontlineShare = 0.2, specialist = false, useDpm = true, killShareWeight = 0, lateWeight = 0 } = {}
 ) {
   const opp = opponentOf(P, ctx);
+// Did the damage convert? Kills taken as a proportion of damage done, rather
+  // than kill share on its own.
+  //
+  // This is the audit's F7 and the "conflicting objectives" §12.3 asks for. Kill
+  // share graded independently pulled a fixed amount off a low number no matter
+  // how the damage got there, so a mage poking a tank through a lost teamfight
+  // for 46% of the team's damage scored 57 — better than an ordinary game — on
+  // damage nobody died to. Riot reports no "damage that contributed to a kill",
+  // so the conversion is the honest proxy.
+  //
+  // As a ratio the two terms pull against each other, which is the property that
+  // makes the composite hard to farm: padding damage raises the denominator and
+  // costs you here, while taking kills off teammates without doing damage
+  // collapses the damage-share term that carries half the component. There is no
+  // way to max both without actually having decided fights.
+  //
+  // The bar is per role and measured, because conversion is a fact about champion
+  // class before it is a fact about play: a jungler converts at 1.24 and a top
+  // laner at 0.80, since bruisers and tanks chip where assassins execute.
+  // Absolute only, for the same reason resource conversion is — comparing it to
+  // the enemy in your role reads as a comparison of who picked the assassin.
+  //
+  // The bar moves with game length, because the denominator does. An ADC's
+  // damage share climbs with the clock while the kills available do not, so a
+  // fixed bar would have read every long game as poor conversion — the same
+  // defect the damage-share bar had before it was given a slope. Scaling the
+  // measured median by exactly how far the expected denominator has moved leaves
+  // it untouched at the 30-minute anchor and correct either side of it.
+  const lengthAdjust = baseline.dmgShare > 0 ? baseline.dmgShare / expectedDmgShare(P, ctx, baseline) : 1;
+  const killConversion =
+    P.killShare == null || !(P.teamDamageShare > 0)
+      ? null
+      : versusShare(P.killShare / P.teamDamageShare, baseline.killPerDamageShare * lengthAdjust, {
+          full: ratioScale(P.role, 'killPerDamageShare', 1.2)
+        });
+
   const dmgScore =
     P.teamDamageShare == null ? null : versusShare(P.teamDamageShare, expectedDmgShare(P, ctx, baseline), { full: ratioScale(P.role, 'dmgShare', 0.75) });
   const tankScore = P.teamTakenShare == null ? null : versusShare(P.teamTakenShare, baseline.tankShare, { full: ratioScale(P.role, 'tankShare', 1.0) });
 
+  // An above-par damage claim is only worth what it converted.
+  //
+  // This is the multiplicative half of §12.3's conflicting objectives, and it is
+  // needed because an additive term was not enough on its own. Damage volume
+  // reaches this component three times — damage share, damage per gold and
+  // damage per minute are the same underlying quantity wearing three hats — so a
+  // single 20%-weight conversion term gets outvoted by its own denominator. A
+  // mage padding 46% of the team's damage into a tank still scored 56, above an
+  // ordinary game, while kill conversion already read 17 out of 100.
+  //
+  // Applied to the damage term rather than to the combined share, so a tank's
+  // damage-taken claim is untouched: discounting "I was the frontline" by "I did
+  // not get the kills" would be answering a question nobody asked. And applied
+  // for every role, not only the ones that also score conversion as its own
+  // term — a top laner opts out of that vote, which made padding worth 46 points
+  // of combat score there before this existed.
+  //
+  // Only above-par volume is damped, and only downward. Below par the damage
+  // term is already saying the player did too little, and letting poor
+  // conversion pull it *up* toward 50 would reward doing nothing, which is the
+  // opposite exploit.
+  // The factor is the raw conversion ratio against par, not the conversion
+  // *score*. The score runs through tanh and so compresses: a player converting
+  // at a fifth of par still scores 21 there, which as a multiplier leaves most
+  // of an inflated damage claim standing. The ratio says what it means — your
+  // damage counted in proportion to how much of it converted, capped at par so
+  // converting well can never inflate the claim beyond what the damage was.
+  const conversionVsPar =
+    killConversion === null || !(baseline.killPerDamageShare > 0) || !(P.teamDamageShare > 0)
+      ? null
+      : clamp(P.killShare / P.teamDamageShare / (baseline.killPerDamageShare * lengthAdjust), 0, 1);
+  // Applied to every term that is a damage-volume claim, not just the first one.
+  // Damage share, damage per gold and damage per minute are the same number
+  // divided by three different things, so discounting one and leaving the others
+  // moves the exploit rather than closing it — padding the damage figure still
+  // bought 30 combat points through damage-per-gold alone.
+  const discount = (score) =>
+    score !== null && score > 50 && conversionVsPar !== null && conversionVsPar < 1
+      ? 50 + (score - 50) * conversionVsPar
+      : score;
+
+  const convertedDmg = discount(dmgScore);
+
   let shareScore = weightedMean([
-    { score: dmgScore, weight: 1 - frontlineShare },
+    { score: convertedDmg, weight: 1 - frontlineShare },
     { score: tankScore, weight: frontlineShare }
   ]);
   if (dmgScore === null && tankScore === null) shareScore = null;
   else if (specialist) {
     // 0.9 so a specialist still can't quite match someone strong at both.
-    shareScore = Math.max(shareScore, Math.max(dmgScore ?? 0, tankScore ?? 0) * 0.9);
+    shareScore = Math.max(shareScore, Math.max(convertedDmg ?? 0, tankScore ?? 0) * 0.9);
   }
 
   const dpmScore = useDpm && opp ? versus(P.dpm, opp.dpm, { prior: 60, gain: 1.25 }) : null;
@@ -359,18 +438,7 @@ function combatComponent(
           full: ratioScale(P.role, 'damagePerGoldShare', 0.8)
         });
 
-  // How much of the team's killing was you. Damage share alone misses this from
-  // both directions: an assassin converts less total damage into more kills, and
-  // a mage chipping a whole teamfight racks up damage that killed nobody. Kept
-  // deliberately minor — kills are noisy and the model exists to get away from
-  // grading on KDA, so this corrects damage share rather than competing with it.
-  const killScore =
-    P.killShare == null
-      ? null
-      : blend(
-          opp && opp.killShare != null ? versus(P.killShare, opp.killShare, { prior: 0.06, gain: 1.25 }) : null,
-          versusShare(P.killShare, baseline.killShare, { full: ratioScale(P.role, 'killShare', 1.0) })
-        );
+
 
   // Were you in the fights that decided the game. Damage share is a whole-game
   // figure and cannot tell a jungler who dominated skirmishes before 15 from one
@@ -383,9 +451,9 @@ function combatComponent(
   // an extra term dilutes the others rather than needing them restated.
   const score = weightedMean([
     { score: shareScore, weight: 0.5 },
-    { score: conversionScore, weight: 0.28 },
-    { score: dpmScore, weight: 0.22 },
-    { score: killScore, weight: killShareWeight },
+    { score: discount(conversionScore), weight: 0.28 },
+    { score: discount(dpmScore), weight: 0.22 },
+    { score: killConversion, weight: killShareWeight },
     { score: lateScore, weight: lateWeight }
   ]);
   const detail =

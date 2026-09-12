@@ -193,6 +193,31 @@ share multiplied by the team's total damage, so grading both double-counts the s
 the only thing the second copy adds is how much damage the two teams did — a property of
 the game rather than of the player.
 
+**The score has to survive six people who know how it works.** That's finding F7, and it's
+the only one with a live adversary. The spec's remedy is that the composite must contain
+metrics that *conflict* — you must not be able to max one axis by abandoning another — so
+`test/anti-gaming.test.js` runs a synthetic profile for each exploit the finding names and
+asserts none of them pay.
+
+Three of the four were already dead. The coward (farm all game, contest nothing) scores 44,
+the kill-participation farmer (92% KP on 9% of the damage) 45, the kill-stealer (14 kills
+on 6% of the damage) 47. **Damage padding was genuinely open**: poking a frontline for 46%
+of the team's damage and taking one kill scored 56.7, *above* an ordinary game — and in
+top lane it took the Teamfight component from 38 to 85.
+
+The fix is kill conversion — kills as a proportion of damage done — and it works two ways
+at once, because an additive term alone got outvoted. Damage volume reaches the Teamfight
+component three times (damage share, damage per gold, damage per minute are the same
+number divided by three different things), so conversion also **scales an above-par damage
+claim by how much of it converted, capped at par**. Padding now costs points in every role.
+Only above-par claims are damped, and only downward — letting poor conversion pull a
+below-par claim *up* toward 50 would reward doing nothing, which is the opposite exploit.
+
+Par is per role and measured, because conversion is a fact about champion class before
+it's a fact about play: a jungler converts at 1.24 and a top laner at 0.80, since bruisers
+chip where assassins execute. The control matters as much as the exploits — a genuine carry
+(12 kills, 36% damage, 72% KP) still scores 71 on Teamfight and clearly beats the imitation.
+
 **Two metrics are graded absolutely with no head-to-head half at all**, against the
 general rule. Resource conversion is one. The support's CC and heal/shield axes are the
 other: cross-champion variance dwarfs within-champion variance, so comparing them to the
@@ -493,6 +518,17 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   call comes with the reason attached (`Vision 39 · squad 52 (-13) · under 45 in 7 of 7
   games — that's the pattern, not one bad night`) plus what they're doing well. See
   [The bench call](#the-bench-call) for why a mean on its own was the wrong tool.
+- `/explain [term]` — what any part of the score means, what it is measured against, and
+  where the number comes from. With no term it prints **the whole formula**: every
+  component, its weight in each of the five roles, and what the model does not measure.
+  With a term it gives the definition, the source field, a confidence tier, and — for a
+  metric — **what par actually is in each role, read live out of the calibration** rather
+  than restated, so what it prints is what the last game was graded against.
+
+  This is not decoration. If the squad can't look up what a metric means, the bot's
+  authority rests on nobody checking, which is the failure mode it was built to replace.
+  A test asserts the published weights match the live rubrics, so a glossary that drifts
+  fails the build instead of confidently misinforming the one person who came to check.
 - `/benched` — the running tally of who has actually been benched, and which roles get
   benched most. Roles come first: each shows the count *and* the games played in that
   role, because "ADC benched 4 times" means something different across 10 games than
