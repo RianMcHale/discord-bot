@@ -511,10 +511,15 @@ function objectiveComponent(P, ctx, baseline, { controlShare = 0.3, turretShare 
   if (P.epicSteals > 0) score = clamp(score + Math.min(P.epicSteals, 2) * 3, 0, 100);
 
   const soul = P.tookSoul ? ' · soul' : P.concededSoul ? ' · conceded soul' : '';
+  // The share is only shown where it is actually graded. A jungler's bar has no
+  // headroom, so `shareScore` is null for them and printing "100% of team's"
+  // next to a below-par Objectives score says a number that had no part in it —
+  // which is precisely the confusion /explain exists to avoid.
+  const sharePart = shareScore === null ? '' : `${Math.round((P.epicShare ?? 0) * 100)}% of team's · `;
   const detail =
     P.teamEpicControl == null
       ? `${P.personalEpics.toFixed(1)} objective takedowns`
-      : `${Math.round((P.epicShare ?? 0) * 100)}% of team's · team held ${Math.round(P.teamEpicControl * 100)}%${soul}`;
+      : `${sharePart}team held ${Math.round(P.teamEpicControl * 100)}%${soul}`;
   return { score, detail };
 }
 

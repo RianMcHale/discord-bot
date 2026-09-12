@@ -12,7 +12,7 @@ import { campedTopScenario } from './helpers/matchFixture.js';
 import { scoreMatch } from '../src/scoring/index.js';
 import { BASELINE } from '../src/scoring/roles.js';
 import { RUBRICS, COMPONENTS, METRICS, lookup, barsFor, usedBy, explainableIds } from '../src/scoring/glossary.js';
-import * as explain from '../src/commands/explain.js';
+import * as glossary from '../src/commands/glossary.js';
 
 const ROLES = ['TOP', 'JUNGLE', 'MIDDLE', 'BOTTOM', 'UTILITY'];
 
@@ -103,7 +103,7 @@ test('a metric knows which components use it and what they weigh', () => {
 
 const reply = async (term) => {
   let out = null;
-  await explain.execute({
+  await glossary.execute({
     options: { getString: () => term ?? null },
     async reply(p) {
       out = p;
@@ -123,7 +123,7 @@ test('with no term it publishes the whole formula', () => {
     // And it says what it does not know, permanently and without being asked.
     const not = j.fields.find((f) => f.name === 'Not measured');
     assert.ok(not, 'the disclosure belongs here too');
-    assert.match(not.value, /Communication/);
+    assert.match(not.value, /communication/i);
   });
 });
 
@@ -157,7 +157,7 @@ test('an unknown term suggests rather than shrugs', async () => {
 
 test('autocomplete offers real ids only', async () => {
   let offered = null;
-  await explain.autocomplete({
+  await glossary.autocomplete({
     options: { getFocused: () => 'kill' },
     async respond(choices) {
       offered = choices;

@@ -175,7 +175,7 @@ export async function execute(interaction) {
       `Recency-weighted over each player's last ${config.rollingWindow} games · ` +
       `minimum ${minEffectiveGames} effective` +
       (notes.length ? `\n${notes.join(' · ')}` : '') +
-      `\nNot measured: ${NOT_MEASURED.join(', ').toLowerCase()}. /explain shows how any of this is worked out.`
+      `\nNot measured: ${NOT_MEASURED.join(' · ')}. /explain says why any one score came out as it did.`
   });
 
   if (provisional.length > 0) {

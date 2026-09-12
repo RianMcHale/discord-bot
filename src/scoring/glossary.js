@@ -108,10 +108,14 @@ export const COMPONENTS = {
   },
   roam: {
     label: 'Roaming',
-    what: 'Takedowns away from your own lane during laning phase.',
-    how: 'Counted as outcomes, not movement — leaving lane is only worth what happened when you got there.',
-    watch: 'Roam *rate* is deliberately not scored. Walking around the map is not an achievement.',
-    metrics: []
+    what: 'Whether you made things happen away from your own lane — measured differently by role.',
+    how:
+      'For a mid laner it is kill participation plus how much of the team’s objective presence was you, which is what leaving lane actually buys. ' +
+      'For a support it is takedowns away from bot lane during laning phase.',
+    watch:
+      'Roam *rate* is deliberately not scored anywhere — walking around the map is not an achievement, so this counts outcomes rather than movement. ' +
+      'Note the detail line for a mid laner reads as participation, because for that role this is participation.',
+    metrics: ['kp', 'lateKp']
   },
   tempo: {
     label: 'Tempo & map control / Wave and vision',
@@ -247,11 +251,13 @@ export const METRICS = {
 };
 
 /** What is deliberately not measured (spec §1.4). */
+// Kept short and comma-free: these get joined into a single footer line, and an
+// entry containing its own comma turns that line into an unreadable list.
 export const NOT_MEASURED = [
-  'Communication and shotcalling',
-  'Draft and champion select',
-  'Wave management, beyond what shows up in gold and experience',
-  'Whether a call was right, only whether it worked'
+  'communication and shotcalling',
+  'draft and champion select',
+  'wave management beyond gold and xp',
+  'whether a call was right — only whether it worked'
 ];
 
 /** Every id `/explain` will answer to. */

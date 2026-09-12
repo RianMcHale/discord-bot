@@ -542,17 +542,43 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   archived payloads. **No Riot API calls and nothing is deleted.** Defaults to a preview,
   which reports how many games would change and the biggest movers; `preview:false` applies
   it. Games with no archived payload are left alone. Restricted to the bot owner.
-- `/explain [term]` — what any part of the score means, what it is measured against, and
-  where the number comes from. With no term it prints **the whole formula**: every
-  component, its weight in each of the five roles, and what the model does not measure.
-  With a term it gives the definition, the source field, a confidence tier, and — for a
-  metric — **what par actually is in each role, read live out of the calibration** rather
-  than restated, so what it prints is what the last game was graded against.
+- `/explain [player] [game]` — **why someone scored what they did**, good or bad. Defaults
+  to your own most recent game. Names the two or three things that actually moved the
+  number, with the evidence from that game attached:
 
-  This is not decoration. If the squad can't look up what a metric means, the bot's
-  authority rests on nobody checking, which is the failure mode it was built to replace.
-  A test asserts the published weights match the live rubrics, so a glossary that drifts
-  fails the build instead of confidently misinforming the one person who came to check.
+  ```
+  🌲 kaiz — Nunu, jungle
+  31.5 (F) · Lost · 32 min · 3/2/9
+
+  A bad game, and mostly gank impact.
+  50 is par for the role. This came in 18.5 below.
+
+  What cost it
+    Gank impact  −7.1  0 gank takedowns · 7.8 unanswered
+    Tempo        −4.5  lanes -3000g @14 · 4 off their jungle
+    Objectives   −4.5  team held 15%
+
+  What held it up
+    Deaths       +2.2  2 deaths · 2 in fights
+  ```
+
+  Each figure is how many **points of the final score** that part is responsible for, and
+  they sum exactly to the distance from 50 — because a composite is a weighted mean
+  anchored there. That's what makes it an account of the number rather than a story about
+  it, and it's why a component on a weight of 6 that scored 90 can outrank one on 28 that
+  scored 58: what matters is what moved the score, not what scored highest.
+
+  It explains a good game as readily as a bad one. It is not a bench-justification tool.
+- `/glossary [term]` — what any part of the score *means*, independent of any game. With no
+  term it prints the whole formula: every component, its weight in each of the five roles,
+  and what the model doesn't measure. With a term it gives the definition, source field,
+  confidence tier, and — for a metric — **what par actually is in each role, read live out
+  of the calibration** rather than restated.
+
+  If the squad can't look up what a metric means, the bot's authority rests on nobody
+  checking, which is the failure mode it was built to replace. A test asserts the published
+  weights match the live rubrics, so a glossary that drifts fails the build instead of
+  confidently misinforming the one person who came to check.
 - `/benched` — the running tally of who has actually been benched, and which roles get
   benched most. Roles come first: each shows the count *and* the games played in that
   role, because "ADC benched 4 times" means something different across 10 games than
