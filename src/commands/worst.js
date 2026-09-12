@@ -9,6 +9,12 @@ export const data = new SlashCommandBuilder()
 
 const fmtRange = (p) => `${p.rating} \`[${p.low} – ${p.high}]\``;
 
+// The floor — their 10th-percentile game — is shown and never used. The spec
+// argues it is the better bench criterion for a rotation and warns it will feel
+// harsher, so the squad gets to look at both for a while and decide with the
+// numbers in front of them rather than by arguing about one nobody has seen.
+const fmtFloor = (p) => (p.floor == null ? '' : ` · floor **${p.floor}**`);
+
 export async function execute(interaction) {
   const { ranked, provisional, shrinkage, excluded, staleCalibration, minEffectiveGames } = computeBenchRatings({
     window: config.rollingWindow
@@ -77,7 +83,9 @@ export async function execute(interaction) {
       )
       .addFields({
         name: 'Ratings (95% range)',
-        value: group.map((p) => `<@${p.discordId}> — **${fmtRange(p)}** · ${p.nEff} eff. games`).join('\n'),
+        value:
+          group.map((p) => `<@${p.discordId}> — **${fmtRange(p)}**${fmtFloor(p)} · ${p.nEff} eff. games`).join('\n') +
+          '\n-# `floor` is their 10th-percentile game — their bad night. Shown for comparison; the call is made on the rating.',
         inline: false
       });
   } else {
@@ -86,8 +94,13 @@ export async function execute(interaction) {
       .setTitle('🪑 Bench recommendation')
       .setColor(0xe67e22)
       .setDescription(
-        `<@${worst.discordId}> has the lowest form: **${fmtRange(worst)}** over ${worst.nEff} effective games.` +
-          (runnerUp ? `\n-# Next lowest is <@${runnerUp.discordId}> at ${fmtRange(runnerUp)}.` : '')
+        `<@${worst.discordId}> has the lowest form: **${fmtRange(worst)}**${fmtFloor(worst)} over ${worst.nEff} effective games.` +
+          (runnerUp ? `\n-# Next lowest is <@${runnerUp.discordId}> at ${fmtRange(runnerUp)}${fmtFloor(runnerUp)}.` : '') +
+          // Named where it would change the answer, because that is the case the
+          // squad needs to see before deciding whether to switch to it.
+          (runnerUp && worst.floor != null && runnerUp.floor != null && runnerUp.floor < worst.floor
+            ? `\n-# On **floor** rather than average the order flips — <@${runnerUp.discordId}> has the worse bad night.`
+            : '')
       );
   }
 

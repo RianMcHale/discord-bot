@@ -60,6 +60,27 @@ const OVERLAP_TOLERANCE = 0.5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+
+/**
+ * The 10th-percentile score in a player's window — their bad night (spec §8.4).
+ *
+ * Displayed beside the rating, never used to decide anything. The spec argues
+ * the floor is the better bench criterion for a rotation and warns it will feel
+ * harsher, so the squad is looking at it before deciding whether to switch,
+ * rather than deciding on an argument about a number nobody has seen.
+ *
+ * Deliberately unweighted and unshrunk, unlike the rating. A recency-weighted
+ * percentile over eight games is more precision than eight games support, and
+ * shrinking a floor toward a mean is a contradiction in terms.
+ */
+function floorOf(xs) {
+  if (xs.length < 3) return null; // a floor drawn from two games is just the lower one
+  const s = [...xs].sort((a, b) => a - b);
+  const i = (s.length - 1) * 0.1;
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
 const round1 = (v) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 10) / 10);
 
 /**
@@ -277,6 +298,8 @@ export function computeBenchRatings({
         gamesPlayed: r.scores.length,
         nEff: Math.round(nEff * 10) / 10,
         rawMean: round1(mean(r.scores)),
+        // Display only (§8.4). Never enters the rating, the interval or the verdict.
+        floor: round1(floorOf(r.scores)),
         weightedMean: round1(weightedMean),
         rating: round1(rating),
         low: round1(rating - halfWidth),

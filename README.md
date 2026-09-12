@@ -401,6 +401,19 @@ number.
   more than `BENCH_OVERLAP_TOLERANCE` (default 50%). It reports a tie instead — naming all
   of the tied players rather than one, since picking one of three would be arbitrary.
 
+**The floor is shown beside the rating, and never used.** `floor` is a player's
+10th-percentile game — their bad night. The spec argues this is the better bench criterion
+for a rotation and warns it will feel harsher, so both numbers are on screen while the
+squad decides which one they actually want. The verdict, the intervals and the
+tie-detection all stay on the rating; if the two disagree about who is bottom, `/worst`
+says so explicitly.
+
+That disagreement is the whole reason to look. Two players can be statistically
+indistinguishable on the rating — 47.7 and 48.3 with overlapping intervals — while their
+floors are 6.7 and 38.7. The rating says "can't tell them apart"; the floor says one of
+them has a catastrophe every other game. Decide with those in front of you rather than by
+arguing about a number nobody has seen.
+
 In practice that means the same command gives opposite answers on the same volume of data
 depending on whether the difference is real. Three players two points apart with an SD of
 11 over six games come back as **"too close to call"** with a 98% overlap. A player who is

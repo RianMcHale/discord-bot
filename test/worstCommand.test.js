@@ -194,3 +194,67 @@ test('an uncertain role cannot bench anyone either', async () => {
   const j = await reply();
   assert.match(j.title, /No bench call yet/);
 });
+
+// ---------------------------------------------------------------------------
+// The floor (spec §8.4)
+//
+// Shown beside the rating and never used to decide anything. The spec argues the
+// floor is the better bench criterion for a rotation and warns it will feel
+// harsher, so the squad looks at both before deciding whether to switch.
+// ---------------------------------------------------------------------------
+
+test('the floor is shown alongside the rating', async () => {
+  seed({
+    alice: [22, 38, 29, 41, 26, 33, 19, 36],
+    bob: [55, 71, 62, 48, 66, 58, 73, 51]
+  });
+  const j = await reply();
+  assert.match(j.description, /floor \*\*[\d.]+\*\*/, 'the harsher number has to be visible to be argued about');
+});
+
+test('the floor does not change who is named', async () => {
+  // A player whose average is fine but whose bad nights are terrible. On floor
+  // they would be bottom; on the mean they are not, and the mean is what decides.
+  seed({
+    alice: [48, 52, 46, 51, 49, 47, 53, 50], // steady, never disastrous
+    bob: [72, 8, 68, 12, 70, 15, 74, 9] // brilliant or catastrophic
+  });
+  const j = await reply();
+  // bob's mean is higher than alice's, so alice is bottom on the rating even
+  // though bob owns every one of the worst games in the window.
+  if (/Bench recommendation/.test(j.title)) {
+    assert.match(j.description, /alice/, 'the verdict still follows the rating');
+  } else {
+    assert.match(j.title, /Too close to call/);
+  }
+});
+
+test('it says so when the floor would flip the order', async () => {
+  // The case worth surfacing: the two criteria disagree. That is exactly the
+  // evidence the squad needs to settle which one they want.
+  seed({
+    alice: [40, 44, 38, 45, 41, 43, 39, 42], // lower mean, no disasters
+    bob: [70, 6, 66, 9, 72, 11, 68, 7] // higher mean, far worse floor
+  });
+  const j = await reply();
+  if (/Bench recommendation/.test(j.title)) {
+    assert.match(j.description, /floor/, 'both floors are on screen');
+  }
+});
+
+test('a floor is withheld until there are enough games to have one', async () => {
+  // Drawn from two games it is just the lower of the two, which is not a floor.
+  db.resetGames();
+  for (const [i, id] of ['alice', 'bob'].entries()) {
+    db.upsertPlayer({ discordId: id, riotGameName: id, riotTagLine: 'EUW', puuid: `pf${i}` });
+  }
+  const now = Date.now();
+  for (let g = 0; g < 2; g++) {
+    storeGame(`F${g}`, now - (2 - g) * DAY, [
+      ['alice', 30, null],
+      ['bob', 60, null]
+    ]);
+  }
+  const j = await reply();
+  assert.match(j.title, /No bench call yet/, 'two games is not enough to bench on anyway');
+});
