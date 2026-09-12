@@ -518,6 +518,10 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   call comes with the reason attached (`Vision 39 · squad 52 (-13) · under 45 in 7 of 7
   games — that's the pattern, not one bad night`) plus what they're doing well. See
   [The bench call](#the-bench-call) for why a mean on its own was the wrong tool.
+- `/rescore [last] [preview]` — re-score stored games with the current model, from the
+  archived payloads. **No Riot API calls and nothing is deleted.** Defaults to a preview,
+  which reports how many games would change and the biggest movers; `preview:false` applies
+  it. Games with no archived payload are left alone. Restricted to the bot owner.
 - `/explain [term]` — what any part of the score means, what it is measured against, and
   where the number comes from. With no term it prints **the whole formula**: every
   component, its weight in each of the five roles, and what the model does not measure.
@@ -698,11 +702,38 @@ A second check runs on the match itself, in case a game slips through the first.
 recorded with its reason like any other rejection (`played 30 days ago, outside the 7-day
 window`), so a scan that finds nothing can still be explained afterwards.
 
-**One thing to know before re-scoring history.** `/resetgames` followed by a re-scan can
-only bring back games inside the window — anything older is gone from the board until you
-widen it. If you are re-scoring after a scoring change, raise `MAX_GAME_AGE_DAYS` first and
-put it back afterwards. Changing it re-checks games previously turned away for being too
-old, the same way changing the queue lists does.
+Changing it re-checks games previously turned away for being too old, the same way changing
+the queue lists does.
+
+### Re-scoring history
+
+Every scored game's raw Riot payload is kept, gzipped, one file each under
+`<data>/raw/`. That turns "apply a scoring change to past games" from a Riot-API problem
+into a local one:
+
+```bash
+/rescore preview:true
+```
+
+It reads the archive, re-scores every stored game with the current model, and reports what
+would change — **no deletion and no Riot API calls**. Run it again with `preview:false` to
+apply it. Games scored before archiving existed have no payload and are left exactly as
+they are; deleting somebody's history to tidy up a version number is the worse outcome.
+
+This matters more than it sounds. The model has changed a great deal — baselines went from
+hand-set guesses to measured medians, curves were rescaled to the spread they grade, a
+whole anti-gaming term arrived — and every one of those left the games already stored
+saying what the *old* model said, so a rolling average was quietly mixing scores that don't
+mean the same thing. That's finding F9.
+
+It also matters because of the fetch window above. The old approach — `/resetgames` then
+re-fetch — cannot reach anything older than seven days any more, so it would delete history
+it cannot bring back. `/resetgames` now says so and requires `force:true` if you meant it.
+
+Payloads compress about 10:1, so expect roughly 50–100 KB per game. `/status` reports the
+real figure and what fraction of your history is re-scorable. Set `ARCHIVE_RAW=0` to turn
+it off if the volume is tight — the bot then behaves exactly as it used to, and past games
+become permanently frozen at whatever they scored when first played.
 
 ## Auto-posting finished games
 

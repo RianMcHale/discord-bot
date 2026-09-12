@@ -4,6 +4,8 @@ import { riot } from '../riotApi.js';
 import { config } from '../config.js';
 import { watcherStatus } from '../watcher.js';
 import { allowedQueues } from '../queues.js';
+import { stats as archiveStats } from '../rawArchive.js';
+import { coverage } from '../rescore.js';
 
 /**
  * Health check.
@@ -106,6 +108,23 @@ export async function execute(interaction, { api = riot } = {}) {
     `-# ${dbPath} · ${db.skippedCount()} match(es) checked and rejected · ` +
       (lastScan ? `last scan <t:${Math.floor(lastScan / 1000)}:R>` : 'no scan since restart')
   );
+
+  // The archive decides whether a scoring change can reach history at all, so
+  // its coverage belongs on the status line rather than being discovered the
+  // first time someone runs /rescore and finds it covers four games.
+  const a = archiveStats();
+  if (!a.enabled) {
+    lines.push(`${WARN} **Archive** — off (\`ARCHIVE_RAW=0\`), so past games cannot be re-scored`);
+  } else {
+    const cov = coverage();
+    lines.push(
+      `${cov.pct >= 90 ? OK : WARN} **Archive** — ${cov.covered}/${cov.stored} games re-scorable (${cov.pct}%)` +
+        ` · ${a.mb} MB`
+    );
+    if (cov.missing > 0) {
+      lines.push(`-# ${cov.missing} scored before archiving existed — their payloads are gone, so they stay as they are`);
+    }
+  }
 
   const healthy = !lines.some((l) => l.startsWith(BAD));
   const embed = new EmbedBuilder()

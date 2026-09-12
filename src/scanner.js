@@ -15,6 +15,7 @@ import { scoreMatch } from './scoring/index.js';
 import { isSupportedQueue, unsupportedReason, queueRulesKey } from './queues.js';
 import { enemySummary } from './embeds.js';
 import { config } from './config.js';
+import * as rawArchive from './rawArchive.js';
 
 /**
  * Match history for one player, repairing a stale PUUID if that's what's wrong.
@@ -250,6 +251,11 @@ async function runScan({ lookback = 5, maxToScore = 5, order = 'newest', api = r
       deferred += 1;
       continue;
     }
+
+    // Archived before scoring, and deliberately: a payload that makes the model
+    // throw is the one most worth having kept. Scoring it again later needs the
+    // inputs, and after the fetch window closes Riot will not hand them back.
+    rawArchive.save(matchId, { match, timeline });
 
     let scores;
     try {

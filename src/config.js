@@ -40,6 +40,17 @@ export const config = {
   // still shouldn't rank someone on a single game.
   alltimeMinGames: parseInt(process.env.ALLTIME_MIN_GAMES || '3', 10),
 
+  // Keep the raw Riot payload for every scored game, gzipped, one file each.
+  //
+  // On by default because without it a scoring change can only be applied to
+  // games still inside the fetch window — everything older is unreachable from
+  // Riot and therefore frozen at whatever the model said when it was first
+  // scored. `/rescore` reads these and needs no API calls at all.
+  //
+  // Set ARCHIVE_RAW=0 if the volume is tight. `/status` reports what it is
+  // actually using.
+  archiveRaw: process.env.ARCHIVE_RAW !== '0',
+
   // The bench decision's two statistical thresholds (spec §8.3).
   //
   // `benchMinEffectiveGames` counts *recency-weighted* games, so six games where

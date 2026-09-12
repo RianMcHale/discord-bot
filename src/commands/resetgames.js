@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { db } from '../storage.js';
-import { isAdmin } from '../config.js';
+import { config, isAdmin } from '../config.js';
+import { coverage } from '../rescore.js';
 
 // /fetchgame scores at most this many games per run, so a bigger reset needs
 // more than one pass. Kept in step with MAX_PER_RUN in fetchgame.js.
@@ -18,8 +19,14 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName('last')
-      .setDescription('Only clear the N most recent games, for re-scoring after a scoring change')
+      .setDescription('Only clear the N most recent games. For re-scoring, prefer /rescore — it keeps the history')
       .setMinValue(1)
+      .setRequired(false)
+  )
+  .addBooleanOption((opt) =>
+    opt
+      .setName('force')
+      .setDescription('Delete anyway, even where /rescore could fix them in place without losing the game')
       .setRequired(false)
   )
   .addBooleanOption((opt) =>
@@ -51,7 +58,28 @@ export async function execute(interaction) {
 
   const last = interaction.options.getInteger('last');
   const duplicatesOnly = interaction.options.getBoolean('duplicates') ?? false;
+  const force = interaction.options.getBoolean('force') ?? false;
   const stored = db.allGames(); // ascending by playedAt
+
+  // Clearing games so they can be re-fetched was the only way to apply a scoring
+  // change before the payloads were archived. It is now the worse way and often
+  // an impossible one: the seven-day fetch window means anything older simply
+  // does not come back, so a reset can delete history it cannot replace.
+  if (!duplicatesOnly && !force) {
+    const cov = coverage();
+    if (cov.covered > 0) {
+      await interaction.reply({
+        content:
+          `⚠️ **\`/rescore\` is probably what you want.** ${cov.covered} of ${cov.stored} stored games can be ` +
+          're-scored in place with the current model — same result, nothing deleted, no Riot API calls.\n\n' +
+          `Clearing them means re-fetching, and the ${config.maxGameAgeDays}-day fetch window will not return ` +
+          'anything older than that. This can delete history it cannot bring back.\n' +
+          '-# If you genuinely want them gone, run it again with `force:true`.',
+        ephemeral: true
+      });
+      return;
+    }
+  }
 
   if (stored.length === 0) {
     await interaction.reply({ content: 'Nothing to clear — there are no scored games stored.' });
