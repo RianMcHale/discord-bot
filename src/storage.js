@@ -25,7 +25,7 @@ const DB_PATH = path.join(DATA_DIR, 'db.json');
 // and it's not something you want to find out about after a month of games.
 export const dbPath = DB_PATH;
 
-const EMPTY = { players: {}, games: {}, skipped: {}, meta: {} };
+const EMPTY = { players: {}, games: {}, skipped: {}, meta: {}, benchLog: [] };
 
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -252,6 +252,48 @@ export const db = {
     const state = read();
     for (const { matchId, reason } of entries) state.skipped[matchId] = { reason, rosterCount, rulesKey };
     write(state);
+  },
+
+  /**
+   * Records what /worst said, frozen at the moment it said it (spec §12.4).
+   *
+   * Append-only, and deliberately a copy rather than a reference. A bench call is
+   * built from scores that can change underneath it — /rescore rewrites them
+   * whenever the model improves — so "why was I benched six weeks ago" cannot be
+   * answered by recomputing today. It can only be answered by what was written
+   * down then.
+   *
+   * Running /worst again with nothing changed does not add a second entry; it
+   * bumps the count on the first. Otherwise the log records how often people
+   * looked, not what the bot said.
+   */
+  logBenchCall(entry) {
+    const state = read();
+    const log = Array.isArray(state.benchLog) ? state.benchLog : [];
+    const last = log[log.length - 1];
+
+    if (last && last.fingerprint === entry.fingerprint) {
+      last.timesShown = (last.timesShown ?? 1) + 1;
+      last.lastShownAt = entry.at;
+    } else {
+      log.push({ ...entry, timesShown: 1, lastShownAt: entry.at });
+    }
+
+    // Bounded so a year of calls cannot grow the one file every command reads.
+    // Five hundred distinct verdicts is years of a squad's bench decisions.
+    state.benchLog = log.slice(-500);
+    write(state);
+    return state.benchLog[state.benchLog.length - 1];
+  },
+
+  /** Recorded bench calls, newest first; optionally only those naming one player. */
+  benchLog({ discordId = null, limit = 10 } = {}) {
+    const log = Array.isArray(read().benchLog) ? read().benchLog : [];
+    return log
+      .filter((e) => !discordId || e.named?.some((n) => n.discordId === discordId))
+      .slice()
+      .reverse()
+      .slice(0, limit);
   },
 
   // Small key/value bag for bot bookkeeping that isn't player or game data.

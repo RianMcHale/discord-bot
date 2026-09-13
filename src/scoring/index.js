@@ -15,6 +15,8 @@ import { scoreRole, PRESSURE_CAP_AGAINST, PRESSURE_CAP_FOR } from './roles.js';
 import { round1, clamp, grade } from './scale.js';
 import { calibrationVersion } from './calibration.js';
 
+const round2 = (v) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
+
 const MIN_SCORABLE_SECONDS = 8 * 60; // anything shorter is a remake
 
 // Short, scannable flags — these get rendered as one line under a compact
@@ -154,7 +156,31 @@ export function scoreMatch(match, { timeline = null, trackedPuuids = [] } = {}) 
         invadeDeaths: P.invadeDeaths,
         weightedDeaths: P.weightedDeathsPerMin == null ? null : round1(P.weightedDeathsPerMin * ctx.minutes),
         lateKp: P.lateKp == null ? null : Math.round(P.lateKp * 100),
-        killShare: P.killShare == null ? null : Math.round(P.killShare * 100)
+        killShare: P.killShare == null ? null : Math.round(P.killShare * 100),
+
+        // The raw figures behind each component, so /explain can say why a
+        // component landed where it did in words ("6.5 CS a minute against the
+        // 7.7 an ADC usually manages") rather than by parsing the detail line
+        // back apart. Stored, not recomputed later, because the explanation has
+        // to describe the game as it was scored.
+        minutes: round1(ctx.minutes),
+        deaths: P.deaths,
+        deathTags: P.deathTags ? { ...P.deathTags } : null,
+        csPerMin: round2(P.csPerMin),
+        goldPerMin: Math.round(P.goldPerMin ?? 0),
+        dmgShare: P.teamDamageShare == null ? null : Math.round(P.teamDamageShare * 100),
+        damagePerGoldShare: P.damagePerGoldShare == null ? null : round2(P.damagePerGoldShare),
+        kp: P.kp == null ? null : Math.round(P.kp * 100),
+        visionPerMin: round2(P.visionPerMin),
+        controlWards: P.controlWards ?? null,
+        turretDamage: P.turretDamage ?? null,
+        ccScore: P.ccScore ?? null,
+        healShieldPerMin: P.healShieldPerMin == null ? null : Math.round(P.healShieldPerMin),
+        gankTakedowns: P.gankTakedowns ?? null,
+        roamTakedowns: P.roamTakedowns ?? null,
+        soloKills: P.soloKills ?? null,
+        platesEarly: P.platesEarly ?? null,
+        platesLate: P.platesLate ?? null
       },
       notes: buildNotes(P, ctx)
     };

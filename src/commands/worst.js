@@ -1,5 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { computeBenchRatings, benchVerdict } from '../benchRating.js';
+import { computeBenchRatings, benchVerdict, benchLogEntry } from '../benchRating.js';
+import { db } from '../storage.js';
+import { calibrationVersion } from '../scoring/calibration.js';
 import { config } from '../config.js';
 import { NOT_MEASURED } from '../scoring/glossary.js';
 
@@ -66,6 +68,22 @@ export async function execute(interaction) {
 
   const verdict = benchVerdict(ranked);
   const worst = verdict.worst;
+
+  // Written down before it is shown, so the record exists even if the reply
+  // fails. It is the only way to answer "why did it say that" once /rescore has
+  // moved the scores underneath it (spec §12.4).
+  try {
+    db.logBenchCall(
+      benchLogEntry(verdict, ranked, {
+        by: interaction.user?.id ?? null,
+        calibrationVersion: calibrationVersion(),
+        window: config.rollingWindow
+      })
+    );
+  } catch (err) {
+    // Never let the record-keeping stop the call itself.
+    console.error(`Could not log bench call: ${err.message}`);
+  }
 
   const embed = new EmbedBuilder();
 

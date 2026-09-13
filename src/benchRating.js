@@ -346,6 +346,60 @@ export function computeBenchRatings({
 }
 
 /**
+ * The record of one bench call, copied rather than referenced (spec §12.4).
+ *
+ * Everything needed to answer "why did it say that" later is written into the
+ * entry itself: the ratings and ranges as they were, the reasons it gave, and
+ * the calibration that produced the numbers. None of it can be re-derived after
+ * the fact, because /rescore rewrites the scores it was built from.
+ *
+ * The fingerprint is what counts as "the same call". The same players at the
+ * same ratings under the same calibration is one verdict looked at twice; a new
+ * game, which moves a rating, is a new one.
+ */
+export function benchLogEntry(verdict, ranked, { by = null, calibrationVersion = null, window = null } = {}) {
+  const snap = (p) =>
+    p == null
+      ? null
+      : {
+          discordId: p.discordId,
+          name: p.displayName,
+          rating: p.rating,
+          low: p.low,
+          high: p.high,
+          nEff: p.nEff,
+          floor: p.floor ?? null
+        };
+
+  const group = verdict.worst ? [verdict.worst, ...(verdict.tied || [])] : [];
+  const named = group.map(snap);
+  const runnerUp = verdict.decisive && ranked.length > 1 ? snap(ranked[1]) : null;
+
+  return {
+    at: Date.now(),
+    by,
+    decisive: Boolean(verdict.decisive),
+    named,
+    runnerUp,
+    overlap: verdict.overlap ?? null,
+    reasons: (verdict.worst?.gap || []).slice(0, 3).map((g) => ({
+      label: g.label,
+      mine: g.mine,
+      squad: g.field,
+      delta: g.delta
+    })),
+    calibrationVersion,
+    window,
+    fingerprint: [
+      verdict.decisive ? 'call' : 'tie',
+      ...named.map((n) => `${n.discordId}:${n.rating}`),
+      runnerUp ? `ru:${runnerUp.discordId}:${runnerUp.rating}` : '',
+      calibrationVersion ?? 'uncalibrated'
+    ].join('|')
+  };
+}
+
+/**
  * How much two confidence intervals overlap, as a fraction of the narrower one.
  * 0 = disjoint, 1 = one contains the other.
  */

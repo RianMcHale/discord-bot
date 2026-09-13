@@ -547,33 +547,45 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   archived payloads. **No Riot API calls and nothing is deleted.** Defaults to a preview,
   which reports how many games would change and the biggest movers; `preview:false` applies
   it. Games with no archived payload are left alone. Restricted to the bot owner.
-- `/explain [player] [game]` — **why someone scored what they did**, good or bad. Defaults
-  to your own most recent game. Names the two or three things that actually moved the
-  number, with the evidence from that game attached:
+- `/explain [player] [game]` — **why someone scored what they did**, good or bad, in plain
+  sentences. Defaults to your own most recent game. Each thing that actually moved the
+  score gets a short paragraph saying why it landed where it did — against what the role
+  normally does — and, when it was below par, the one change that would have lifted it:
 
   ```
-  🌲 kaiz — Nunu, jungle
-  31.5 (F) · Lost · 32 min · 3/2/9
+  riaN — Ezreal, ADC
+  45.7 · D · Loss · 33 min · 9/9/8
 
-  A bad game, and mostly gank impact.
-  50 is par for the role. This came in 18.5 below.
+  A little below par — mostly lane and farming.
 
-  What cost it
-    Gank impact  −7.1  0 gank takedowns · 7.8 unanswered
-    Tempo        −4.5  lanes -3000g @14 · 4 off their jungle
-    Objectives   −4.5  team held 15%
+  Lane · 41  (−1.4)
+    You came out of laning 130g ahead of the enemy ADC — but your jungler
+    spent a lot of time in your lane, so a lead nearer 646g was the
+    expectation from that much help. Turning that pressure into a bigger
+    lead is what would have put this above par.
 
-  What held it up
-    Deaths       +2.2  2 deaths · 2 in fights
+  Farming · 43  (−1.2)
+    6.5 CS a minute, against the 7.7 an ADC usually manages — about 40 CS
+    short across 33 minutes. Farming closer to 7.7 a minute brings this
+    back to par.
+
+  Positioning · 46  (−0.8)
+    9 deaths: 3 alone in the enemy half, 4 in full teamfights. Deaths
+    nobody else was part of count most against you.
+
+  The other 3 components added −0.9 between them.
   ```
 
-  Each figure is how many **points of the final score** that part is responsible for, and
-  they sum exactly to the distance from 50 — because a composite is a weighted mean
-  anchored there. That's what makes it an account of the number rather than a story about
-  it, and it's why a component on a weight of 6 that scored 90 can outrank one on 28 that
-  scored 58: what matters is what moved the score, not what scored highest.
+  The figure in brackets is how many **points of the final score** that part is responsible
+  for. They add up to the distance from 50 exactly — including the remainder line, which is
+  there so the numbers on screen visibly account for the whole score. It ranks by that, not
+  by the component's own score, which is why a weight-6 component at 90 can outrank a
+  weight-28 one at 58: what matters is what moved the number.
 
-  It explains a good game as readily as a bad one. It is not a bench-justification tool.
+  Advice is only given where it's the actual cause. If your damage share was above par and
+  your kill conversion was good, it won't tell you to convert more — it says nothing rather
+  than something wrong. Games scored before fuller detail was stored fall back to the
+  component's detail line; `/rescore` fills them in.
 - `/glossary [term]` — what any part of the score *means*, independent of any game. With no
   term it prints the whole formula: every component, its weight in each of the five roles,
   and what the model doesn't measure. With a term it gives the definition, source field,
@@ -584,6 +596,16 @@ decision with no visible reason is the voice-chat blame problem with extra laten
   checking, which is the failure mode it was built to replace. A test asserts the published
   weights match the live rubrics, so a glossary that drifts fails the build instead of
   confidently misinforming the one person who came to check.
+- `/benchlog [player]` — every verdict `/worst` has given, **exactly as it gave it**: who
+  was named, their range, the runner-up, the reasons shown, and the calibration that
+  produced the numbers. Filter to one player to see every call that named them.
+
+  This is not the same record as `/benched`, and the difference matters. `/benched` works
+  out who finished lowest in each game from *today's* scores, so after a `/rescore` its
+  history quietly changes. `/benchlog` is copied at the moment of the call and never moves,
+  which is what makes "why did it bench me six weeks ago" answerable. If the model has been
+  recalibrated since a call, the entry says so. Running `/worst` again with nothing changed
+  doesn't add a duplicate — it counts how many times that verdict was shown.
 - `/benched` — the running tally of who has actually been benched, and which roles get
   benched most. Roles come first: each shows the count *and* the games played in that
   role, because "ADC benched 4 times" means something different across 10 games than
