@@ -18,7 +18,7 @@ const fmtRange = (p) => `${p.rating} \`[${p.low} – ${p.high}]\``;
 const fmtFloor = (p) => (p.floor == null ? '' : ` · floor **${p.floor}**`);
 
 export async function execute(interaction) {
-  const { ranked, provisional, shrinkage, excluded, staleCalibration, minEffectiveGames } = computeBenchRatings({
+  const { ranked, provisional, shrinkage, excluded, pastMetaBreak, staleCalibration, minEffectiveGames } = computeBenchRatings({
     window: config.rollingWindow
   });
 
@@ -179,7 +179,12 @@ export async function execute(interaction) {
         : 'not enough history to measure the squad’s spread, so a default is assumed'
     );
   }
-  if (excluded > 0) notes.push(`${excluded} game${excluded === 1 ? '' : 's'} ignored (no timeline, or an uncertain role)`);
+  if (excluded > 0) notes.push(`${excluded} game${excluded === 1 ? '' : 's'} ignored (no timeline, an uncertain role, or somebody left)`);
+  // Different fix, so a different line: these are sound games that wait on a
+  // recalibration rather than unsound ones that never count.
+  if (pastMetaBreak > 0) {
+    notes.push(`${pastMetaBreak} game${pastMetaBreak === 1 ? ' is' : 's are'} past a declared meta break — they count again once the calibration is rebuilt`);
+  }
   if (staleCalibration > 0) {
     notes.push(`${staleCalibration} player${staleCalibration === 1 ? ' has' : 's have'} games from an older calibration — \`/resetgames\` re-scores them`);
   }

@@ -258,3 +258,58 @@ test('a floor is withheld until there are enough games to have one', async () =>
   const j = await reply();
   assert.match(j.title, /No bench call yet/, 'two games is not enough to bench on anyway');
 });
+
+// ---------------------------------------------------------------------------
+// Meta breaks (spec §7.5)
+// ---------------------------------------------------------------------------
+
+test('games past a declared meta break cannot bench anyone until recalibration', async () => {
+  // The one hard rule §7.5 sets. The calibration on disk covers up to 16.17; a
+  // declared break at 17.1 means games on 17.2 are measured against bars from a
+  // game that no longer exists.
+  const { config } = await import('../src/config.js');
+  const before = config.metaBreaks;
+  config.metaBreaks = ['17.1'];
+  try {
+    db.resetGames();
+    for (const [i, id] of ['alice', 'bob'].entries()) {
+      db.upsertPlayer({ discordId: id, riotGameName: id, riotTagLine: 'EUW', puuid: `mb${i}` });
+    }
+    const now = Date.now();
+    for (let g = 0; g < 8; g++) {
+      storeGame(`M${g}`, now - (8 - g) * DAY, [
+        ['alice', [22, 38, 29, 41, 26, 33, 19, 36][g], null],
+        ['bob', [55, 71, 62, 48, 66, 58, 73, 51][g], null]
+      ]);
+      const stored = db.allGames().find((x) => x.matchId === `M${g}`);
+      db.saveGame(stored.matchId, { ...stored, patch: '17.2' });
+    }
+
+    const { computeBenchRatings } = await import('../src/benchRating.js');
+    const rated = computeBenchRatings({ window: 10 });
+    assert.equal(rated.ranked.length, 0, 'nobody is benched on bars from a game that has changed');
+    assert.equal(rated.pastMetaBreak, 16, 'and the games are counted separately, since the fix is to recalibrate');
+  } finally {
+    config.metaBreaks = before;
+  }
+});
+
+test('an ordinary newer patch keeps benching as normal', async () => {
+  // Only declared breaks stop anything. Treating every fortnightly patch as one
+  // would stop the bench working half the time.
+  db.resetGames();
+  for (const [i, id] of ['alice', 'bob'].entries()) {
+    db.upsertPlayer({ discordId: id, riotGameName: id, riotTagLine: 'EUW', puuid: `np${i}` });
+  }
+  const now = Date.now();
+  for (let g = 0; g < 8; g++) {
+    storeGame(`N${g}`, now - (8 - g) * DAY, [
+      ['alice', [22, 38, 29, 41, 26, 33, 19, 36][g], null],
+      ['bob', [55, 71, 62, 48, 66, 58, 73, 51][g], null]
+    ]);
+    const stored = db.allGames().find((x) => x.matchId === `N${g}`);
+    db.saveGame(stored.matchId, { ...stored, patch: '16.19' });
+  }
+  const j = await reply();
+  assert.match(j.title, /Bench recommendation/, 'two patches past the calibration, no declared break, business as usual');
+});

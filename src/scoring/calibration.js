@@ -102,6 +102,16 @@ export function resetCalibration() {
   cached = undefined;
 }
 
+/**
+ * What the calibration was built from — patches, sample size — or null. Read
+ * through the same cached artifact as everything else here, so the drift check
+ * and the scoring can never be looking at two different calibrations.
+ */
+export function calibrationSample() {
+  const cal = read();
+  return cal?.sample ? { ...cal.sample, generatedAt: cal.generatedAt ?? null } : null;
+}
+
 /** The version string a score should carry, or null when running uncalibrated. */
 export function calibrationVersion() {
   const cal = read();

@@ -6,6 +6,7 @@ import { watcherStatus } from '../watcher.js';
 import { allowedQueues } from '../queues.js';
 import { stats as archiveStats } from '../rawArchive.js';
 import { coverage } from '../rescore.js';
+import { patchStatus, driftReport } from '../drift.js';
 
 /**
  * Health check.
@@ -124,6 +125,28 @@ export async function execute(interaction, { api = riot } = {}) {
     if (cov.missing > 0) {
       lines.push(`-# ${cov.missing} scored before archiving existed — their payloads are gone, so they stay as they are`);
     }
+  }
+
+  // Whether the bars still describe the game being played (spec §7.5). Only a
+  // warning, never a failure: the bot keeps working on a stale calibration, it
+  // just gets less right, and that is worth knowing rather than worth alarming.
+  const patches = patchStatus(games);
+  const drift = driftReport(games, { days: 30 });
+  if (patches.crossedBreak) {
+    lines.push(
+      `${WARN} **Calibration** — past declared meta break ${patches.crossedBreak}; ` +
+        `${patches.staleGames} game${patches.staleGames === 1 ? '' : 's'} can't bench anyone until it's rebuilt`
+    );
+  } else if (drift.drifted.length) {
+    lines.push(
+      `${WARN} **Calibration** — ${drift.drifted.map((r) => r.role.toLowerCase()).join(', ')} ` +
+        `scoring away from the other roles; see \`/calibration\``
+    );
+  } else if (patches.calibrated) {
+    lines.push(
+      `${OK} **Calibration** — patches ${patches.calibrated.min}–${patches.calibrated.max}` +
+        (patches.ahead > 0 ? ` · games ${patches.ahead} patch${patches.ahead === 1 ? '' : 'es'} past it` : '')
+    );
   }
 
   const healthy = !lines.some((l) => l.startsWith(BAD));

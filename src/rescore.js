@@ -20,6 +20,7 @@ import { scoreMatch } from './scoring/index.js';
 import { enemySummary } from './embeds.js';
 import { calibrationVersion } from './scoring/calibration.js';
 import * as rawArchive from './rawArchive.js';
+import { patchOf } from './drift.js';
 
 /**
  * Re-scores what the archive can reach.
@@ -122,7 +123,10 @@ export async function rescoreStored({ last = null, dryRun = false, onProgress = 
         ...game,
         scores: scoresByDiscordId,
         enemy: enemySummary(scores, squadTeamId),
-        dataQuality: archived.timeline ? 'full' : 'partial'
+        dataQuality: archived.timeline ? 'full' : 'partial',
+        // Backfilled from the payload, since games stored before this was
+        // recorded have no patch and so cannot be checked against a calibration.
+        patch: game.patch ?? patchOf(archived.match.info?.gameVersion)
       });
     }
   }

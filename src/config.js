@@ -56,6 +56,22 @@ export const config = {
   // actually using.
   archiveRaw: process.env.ARCHIVE_RAW !== '0',
 
+  // Patches where the game changed enough that the calibration cannot be trusted
+  // across them (spec §7.5, §13 `meta_breaks`) — a season start, a map rework.
+  //
+  // Games played past one of these, on a calibration that predates it, are still
+  // scored and shown but cannot decide a bench until the sample is rebuilt.
+  // Ordinary patches are not listed here and do not stop anything: most are
+  // balance tweaks that barely move a role bar, and treating every fortnightly
+  // patch as a break would stop the bench working half the time. Written the way
+  // Riot reports them — 16.x, since patches are numbered by season, not year.
+  //
+  //   META_BREAKS=17.1
+  metaBreaks: (process.env.META_BREAKS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^\d+\.\d+$/.test(s)),
+
   // The bench decision's two statistical thresholds (spec §8.3).
   //
   // `benchMinEffectiveGames` counts *recency-weighted* games, so six games where

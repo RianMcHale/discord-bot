@@ -16,6 +16,7 @@ import { isSupportedQueue, unsupportedReason, queueRulesKey } from './queues.js'
 import { enemySummary } from './embeds.js';
 import { config } from './config.js';
 import * as rawArchive from './rawArchive.js';
+import { patchOf } from './drift.js';
 
 /**
  * Match history for one player, repairing a stale PUUID if that's what's wrong.
@@ -288,6 +289,9 @@ async function runScan({ lookback = 5, maxToScore = 5, order = 'newest', api = r
       platformId: match.info.platformId ?? null,
       playedAt: match.info.gameEndTimestamp || match.info.gameStartTimestamp || Date.now(),
       queueId: match.info.queueId,
+      // Which patch it was played on, so a calibration built on older patches can
+      // be recognised as not covering it (spec §7.5).
+      patch: patchOf(match.info.gameVersion),
       durationSeconds: match.info.gameDuration,
       dataQuality: timeline ? 'full' : 'partial',
       scores: scoresByDiscordId,

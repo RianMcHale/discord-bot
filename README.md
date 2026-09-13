@@ -778,6 +778,43 @@ window`), so a scan that finds nothing can still be explained afterwards.
 Changing it re-checks games previously turned away for being too old, the same way changing
 the queue lists does.
 
+### When the calibration goes stale
+
+The role bars were measured on patches 16.13–16.17, and Riot patches every fortnight. A
+patch that buffs marksmen makes every ADC score above 50 against a bar that hasn't moved —
+and nothing about the scores would look any less authoritative. `/calibration` and
+`/status` now watch for that two ways.
+
+**Patches.** Every game records the patch it was played on, so the bot can say how far the
+squad has moved past what the calibration covers. Ordinary patches are *reported* and stop
+nothing — most are balance tweaks that barely move a role bar, and treating every fortnightly
+patch as a break would stop the bench working half the time. Only patches you declare as
+genuine meta breaks — a season start, a map rework — stop games from benching anyone until
+the calibration is rebuilt:
+
+```
+META_BREAKS=17.1
+```
+
+Written the way Riot reports them: `16.x`, because patches are numbered by season.
+
+**Drift.** Each role's scores are compared with the other four roles, *not with 50*. The
+spec suggests flagging any role whose median leaves 50 ± 3, but for this squad that alarm
+would fire for the wrong reason: a premade playing above its matchmaking rating scores above
+50 across every role without anything being miscalibrated. What a stale bar actually does is
+move one role against the others, so the comparison is relative, which cancels squad skill
+and win rate and leaves exactly the thing that makes a bench unfair. It uses the opposing
+team's scores — strangers at the squad's rating, one per role every game.
+
+It also won't overclaim. A role is only flagged when its whole 95% interval clears the
+3-point tolerance, and only called "in step" when a meaningful drift has been ruled out;
+in between it says how far off the role could plausibly be. Measured over 200 simulated
+samples of 300 games: **no false alarms** on a harmless 1.5-point wobble, a real 8-point
+drift caught 94% of the time. A false alarm has a real cost — it tells you not to trust a
+bench call that's fine, and prompts a recalibration that spends a thousand API calls — so
+missing a mild drift is the cheaper mistake. Expect "no clear drift, but could be up to
+6 off" for the first month or so; that's the honest answer on sixty games.
+
 ### Re-scoring history
 
 Every scored game's raw Riot payload is kept, gzipped, one file each under

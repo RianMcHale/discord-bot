@@ -23,6 +23,7 @@
 import { db } from './storage.js';
 import { config } from './config.js';
 import { aggregateComponents } from './rollingStats.js';
+import { isCalibrationStale } from './drift.js';
 
 // Per day. 0.97 halves a game's weight after about 23 days, which matches how
 // long a squad's form actually stays relevant.
@@ -231,6 +232,7 @@ export function computeBenchRatings({
 
   let excluded = 0;
   let staleCalibration = 0;
+  let pastMetaBreak = 0;
 
   const raw = players.map((player) => {
     const all = db.gamesForPlayer(player.discordId, window);
@@ -238,6 +240,14 @@ export function computeBenchRatings({
     for (const g of all) {
       if (!isBenchQuality(g, player.discordId)) {
         excluded += 1;
+        continue;
+      }
+      // Played across a declared meta break the calibration predates (spec
+      // §7.5). Counted separately from the other exclusions because the fix is
+      // different: those games are unsound in themselves, these are sound games
+      // waiting on a recalibration.
+      if (isCalibrationStale(g.patch)) {
+        pastMetaBreak += 1;
         continue;
       }
       usable.push(g);
@@ -339,6 +349,7 @@ export function computeBenchRatings({
     provisional: rated.filter((p) => !p.eligible).sort((a, b) => b.nEff - a.nEff),
     shrinkage,
     excluded,
+    pastMetaBreak,
     staleCalibration,
     currentCalibration,
     minEffectiveGames
