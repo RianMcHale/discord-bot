@@ -59,7 +59,10 @@ const METRICS = [
   // which is what a curve has to be scaled against: the hand-set lane scale put
   // an ordinary 90th-percentile top lane at 92 and an ordinary support lane at
   // 77, so the same quality of game scored differently by role.
-  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14', 'goldShare', 'damagePerGoldShare', 'killPerDamageShare'
+  'goldDiff14', 'xpDiff14', 'postGoldPerMin', 'teamLaneGoldDiff14', 'goldShare', 'damagePerGoldShare', 'killPerDamageShare',
+  // Jungle only, and null for everyone else — the per-role pass drops nulls, so
+  // these simply produce a JUNGLE bar and nothing elsewhere.
+  'gankTakedowns', 'lanesLeftHanging', 'alliesUnanswered'
 ];
 
 const median = (xs) => {

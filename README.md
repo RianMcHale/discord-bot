@@ -27,7 +27,7 @@ them honestly.
 | Death discipline | 20 | 9 | 16 | 20 | 12 |
 | Objectives | 10 | 20 | 8 | 12 | 8 |
 | Map presence / roam | 8 | — | 18 | 6 | 22 |
-| Gank impact & counter-response | — | 16* | — | — | — |
+| Gank impact (less unanswered pressure) | — | 16* | — | — | — |
 | Tempo & map control | — | 16 | — | — | — |
 | Jungle farm (own camps) | — | 7 | — | — | — |
 | Vision | — | 10 | (in tempo) | — | 24 |
@@ -111,6 +111,29 @@ Net pressure then:
   is dived every wave can't take plates either;
 - **credits the enemy jungler** who created the pressure, and **debits your own jungler**
   for every commitment they left unanswered.
+
+**Gank impact is your ganks, not their jungler's.** It reads as one number but is built as
+a base and a reduction, in that order:
+
+- the **base** is your own early pressure — gank takedowns, plus lane visits at a third of
+  the weight — measured against the enemy jungler's;
+- the **reduction** is the share of pressure on your own lanes you failed to answer,
+  scaled by how much there was to answer, and **capped at 15 points**.
+
+The cap is the point. It is enough to turn a strong ganking game into a mediocre one and
+never enough to sink a jungler who actually made plays: 85 minus 15 is still a good score.
+The reduction is also one-directional — it subtracts or it is absent. It used to be the
+*other* half of a 55/45 blend, scored head-to-head against the enemy jungler's own
+unanswered debt, which had two consequences worth naming:
+
+- a jungler with seven takedowns by 14 minutes could score **26**, because the response
+  half scored 7 on its own and dragged the blend down;
+- a jungler who ganked *nothing* scored **36** on it when their lanes happened not to be
+  ganked either — credit for the enemy jungler being passive. That case now scores 17.
+
+Because the reduction is driven by the *share* you missed rather than the raw count, a
+hyperactive enemy jungler no longer counts twice (once by beating you on the base, again
+by deepening the debt).
 
 **Towers and inhibitors are objectives too.** Map control counted epic monsters only, so a
 27-minute surrender win — ten towers and two inhibitors against six and one, on an even

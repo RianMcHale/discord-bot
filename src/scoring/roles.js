@@ -106,6 +106,16 @@ const PRESSURE_XP = 240;
 export const PRESSURE_CAP_AGAINST = 3;
 export const PRESSURE_CAP_FOR = 2;
 
+// The most Gank impact can be reduced by leaving your own lanes hanging, and the
+// amount of pressure at which that reduction is at full strength.
+//
+// Secondary by design: at 15 points it can turn a strong ganking game into a
+// mediocre one, and cannot on its own sink a jungler who actually made plays —
+// 85 minus 15 is still a good score. The squad's call, and the right one: the
+// component is named for your ganks, so your ganks should decide most of it.
+const UNANSWERED_MAX = 15;
+const UNANSWERED_FULL = 4;
+
 // Anything measured only during laning describes a smaller share of a longer
 // game. Laning is most of a 22-minute game and a prelude to a 40-minute one, so
 // the weight scales with how long the game actually ran. Late-scaling champions
@@ -738,27 +748,57 @@ function scoreJungle(P, ctx) {
 
   const tempo = tempoComponent(P, ctx);
 
-  // Gank conversion: takedowns your commitments produced, versus the enemy
-  // jungler's. Counter-response: how much unanswered pressure your own lanes ate
-  // while you were elsewhere.
+  // Gank impact is your own ganking, reduced by the pressure on your lanes you
+  // never answered. It used to be a 55/45 split between the two, which meant a
+  // component called "Gank impact" was nearly half a verdict on what the *enemy*
+  // jungler did — the same defect that killed the old "Lanes @14", where the
+  // score was set mostly by other people. A jungler with seven takedowns on
+  // enemy laners could score 26 for it.
+  //
+  // Two things were wrong beyond the weighting, and both are fixed here.
+  //
+  // It was two-directional. `versus(theirUnanswered, myUnanswered)` *raised* the
+  // score when the enemy jungler was passive, so you were credited for lanes
+  // that were never ganked. Not being ganked is not an achievement, so this only
+  // ever subtracts.
+  //
+  // And it counted the same enemy ganks twice. Three ganks into your bot lane
+  // raised the enemy's takedowns (lowering your conversion) *and* raised your
+  // unanswered count (lowering your response) — one set of enemy actions, two
+  // penalties, while your own ganks only helped once. The penalty is now driven
+  // by the *share* you failed to answer rather than the raw count, so the
+  // enemy's volume sits in the denominator instead of pushing the number twice.
   const myPlays = P.gankTakedowns + Math.min(P.laneVisitsGiven, 6) * 0.3;
   const theirPlays = opp ? opp.gankTakedowns + Math.min(opp.laneVisitsGiven, 6) * 0.3 : null;
+  // Still head-to-head, and defensibly so here: both junglers had the same three
+  // lanes for the same fifteen minutes, which makes this a far more symmetric
+  // contest than farming or damage, where champion choice decides the number.
+  // The calibration does not yet measure a gank-takedown bar — the pull now
+  // collects one, so this can be anchored like everything else after the next
+  // sample.
   const conversion = theirPlays === null ? null : versus(myPlays, theirPlays, { prior: 1.5, gain: 1.35 });
-  const response =
-    opp && P.alliesUnanswered != null && opp.alliesUnanswered != null
-      ? versus(opp.alliesUnanswered, P.alliesUnanswered, { prior: 1.5, gain: 1.3 })
-      : null;
+
+  // How much of the pressure on your own lanes went unanswered, and how much
+  // there was to answer. Both matter: answering none of six commitments is worse
+  // than answering none of one.
+  const debt = P.lanesLeftHanging ?? 0;
+  const unanswered = P.alliesUnanswered ?? 0;
+  const missedShare = debt > 0 ? clamp(unanswered / debt, 0, 1) : 0;
+  const howMuch = clamp(debt / UNANSWERED_FULL, 0, 1);
+  const penalty = UNANSWERED_MAX * missedShare * howMuch;
+
   const pressure = {
-    score: weightedMean([
-      { score: conversion, weight: 0.55 },
-      { score: response, weight: 0.45 }
-    ]),
-    // Show the credit as well as the debt, so "3.3 unanswered" doesn't read as
-    // an accusation when two of it was worked off by committing elsewhere.
+    score: conversion === null ? null : clamp(conversion - penalty, 0, 100),
+    // Says what was taken off and why, so the number is arguable rather than
+    // mysterious — and shows the credit, so "2.9 unanswered" does not read as an
+    // accusation when some of it was worked off by committing elsewhere.
     detail:
       `${P.gankTakedowns} gank takedowns` +
-      (P.alliesUnanswered != null ? ` · ${P.alliesUnanswered.toFixed(1)} unanswered` : '') +
-      (P.lanesAnswered > 0.3 ? ` (${P.lanesLeftHanging.toFixed(1)} less ${P.lanesAnswered.toFixed(1)} answered)` : '')
+      (debt > 0
+        ? ` · ${unanswered.toFixed(1)} of ${debt.toFixed(1)} lane ganks unanswered` +
+          (P.lanesAnswered > 0.3 ? ` (${P.lanesAnswered.toFixed(1)} answered elsewhere)` : '') +
+          (penalty >= 0.5 ? ` −${penalty.toFixed(1)}` : '')
+        : ' · your lanes were not ganked')
   };
 
   // Counter-jungling has moved out to Tempo, where it belongs: taking the

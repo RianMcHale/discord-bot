@@ -143,7 +143,16 @@ function rowsFor(match, timeline) {
       xpDiff14: p.xpDiff14 ?? null,
       platesEarly: p.platesEarly ?? null,
       platesLate: p.platesLate ?? null,
-      lateKp: p.lateKp
+      lateKp: p.lateKp,
+      // Jungle pressure. Gank impact is the last component with no absolute
+      // anchor — it grades your ganking purely against the enemy jungler, so
+      // drawing a hyperactive one marks you down however well you actually
+      // ganked. Collected so the next calibration can give it a bar like
+      // everything else.
+      gankTakedowns: p.gankTakedowns ?? null,
+      laneVisitsGiven: p.laneVisitsGiven ?? null,
+      lanesLeftHanging: p.lanesLeftHanging ?? null,
+      alliesUnanswered: p.alliesUnanswered ?? null
     }));
 }
 

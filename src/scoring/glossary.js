@@ -129,8 +129,8 @@ export const COMPONENTS = {
   },
   pressure: {
     label: 'Gank impact',
-    what: 'Ganks that produced something, and lanes you left unanswered while the enemy jungler was in them.',
-    how: 'Credited on outcomes. A gank that achieved nothing is not a gank that happened.',
+    what: 'Your own early ganking, reduced by pressure on your lanes you never answered.',
+    how: 'Mostly your ganks: takedowns before 15, plus lane visits at a third of the weight. Leaving lanes hanging takes off up to 15 points and never adds any. A gank that achieved nothing is not a gank that happened.',
     watch: 'The other side of it appears on the laner’s grade: pressure you took lowers your lane bar, and pressure your jungler gave raises it.',
     metrics: []
   },

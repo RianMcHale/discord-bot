@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-12T12:49:14.768Z",
+  "generatedAt": "2026-09-17T21:41:26.806Z",
   "sample": {
     "matches": 488,
     "participantRows": 4880,
@@ -212,6 +212,27 @@
           "mad": 0.3738,
           "p10": 0.3226,
           "p90": 1.2559
+        },
+        "gankTakedowns": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "lanesLeftHanging": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "alliesUnanswered": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
         }
       }
     },
@@ -400,6 +421,27 @@
           "mad": 0.4343,
           "p10": 0.6698,
           "p90": 1.9339
+        },
+        "gankTakedowns": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "lanesLeftHanging": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "alliesUnanswered": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
         }
       }
     },
@@ -588,6 +630,27 @@
           "mad": 0.3779,
           "p10": 0.5199,
           "p90": 1.4888
+        },
+        "gankTakedowns": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "lanesLeftHanging": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "alliesUnanswered": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
         }
       }
     },
@@ -776,6 +839,27 @@
           "mad": 0.3744,
           "p10": 0.479,
           "p90": 1.5307
+        },
+        "gankTakedowns": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "lanesLeftHanging": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "alliesUnanswered": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
         }
       }
     },
@@ -964,9 +1048,30 @@
           "mad": 0.5254,
           "p10": 0,
           "p90": 1.3969
+        },
+        "gankTakedowns": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "lanesLeftHanging": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
+        },
+        "alliesUnanswered": {
+          "n": 0,
+          "median": null,
+          "mad": null,
+          "p10": null,
+          "p90": null
         }
       }
     }
   },
-  "calibrationVersion": "5dcaeff19cca"
+  "calibrationVersion": "b760f2f6c448"
 }

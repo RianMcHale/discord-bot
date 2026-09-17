@@ -237,13 +237,26 @@ const NARRATORS = {
   },
 
   pressure(c, f, m) {
-    if (!has(f.gankTakedowns) && !has(f.alliesUnanswered)) return null;
-    let why = has(f.gankTakedowns) ? `${plural(f.gankTakedowns, 'gank takedown')}` : 'Your ganks';
-    if (has(f.alliesUnanswered) && f.alliesUnanswered >= 0.5) {
-      why += `, and the enemy jungler got into your lanes about ${plural(Math.round(f.alliesUnanswered), 'time')} without an answer`;
+    if (!has(f.gankTakedowns)) return null;
+    // Your ganks decide this; the enemy jungler's only reduce it. The sentence is
+    // built in that order so the number reads the way it is actually computed —
+    // the old phrasing joined the two with "and", which read as a half-and-half
+    // split and left a jungler who ganked well wondering where the score went.
+    let why = `${plural(f.gankTakedowns, 'gank takedown')} before laning ended, which is what this is mostly made of.`;
+    if (has(f.alliesUnanswered) && f.alliesUnanswered >= 0.5 && has(f.lanesLeftHanging)) {
+      const answered = has(f.lanesAnswered) && f.lanesAnswered > 0.3;
+      why +=
+        ` It is reduced because their jungler got into your lanes about ${plural(Math.round(f.lanesLeftHanging), 'time')}` +
+        (answered
+          ? ` and you answered some of that elsewhere, leaving roughly ${Math.round(f.alliesUnanswered)} of it unaccounted for.`
+          : ' with nothing from you in return.');
     }
-    why += '.';
-    const fix = c.score >= 50 ? null : 'Ganks that end in a takedown, and answering their jungler’s, is what lifts this.';
+    const fix =
+      c.score >= 50
+        ? null
+        : has(f.gankTakedowns) && f.gankTakedowns <= 2
+          ? 'Ganks that end in a takedown are what lift this.'
+          : 'Answering their jungler when they commit to one of your lanes is what is left.';
     return { why, fix };
   },
 
